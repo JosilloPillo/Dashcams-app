@@ -153,6 +153,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         beepOn = prefs.getBoolean(KEY_BEEP, true)
         fitPreview = prefs.getBoolean(KEY_FIT, false)
         voiceOn = prefs.getBoolean(KEY_VOICE, false)
+        voice.phrase = VoiceCommand.Phrase.fromName(prefs.getString(KEY_PHRASE, null))
         applyPreviewScale()
         beepId = soundPool.load(this, R.raw.guardado, 1)
 
@@ -374,6 +375,18 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             if (on == voiceOn) return@setOnCheckedChangeListener
             setVoice(on)
         }
+        s.phraseGroup.setOnCheckedChangeListener { _, checkedId ->
+            val chosen = when (checkedId) {
+                R.id.phraseRed -> VoiceCommand.Phrase.CODIGO_ROJO
+                R.id.phraseAlert -> VoiceCommand.Phrase.ALERTA
+                else -> VoiceCommand.Phrase.EMERGENCIA
+            }
+            if (chosen == voice.phrase) return@setOnCheckedChangeListener
+            voice.phrase = chosen // si estaba escuchando, se reinicia con la nueva frase
+            prefs.edit().putString(KEY_PHRASE, chosen.name).apply()
+            refreshSettings(s)
+            syncVoice()
+        }
 
         sheet.behavior.state = BottomSheetBehavior.STATE_EXPANDED
         sheet.behavior.skipCollapsed = true
@@ -399,6 +412,13 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         }
 
         s.switchVoice.isChecked = voiceOn
+        s.phraseGroup.check(
+            when (voice.phrase) {
+                VoiceCommand.Phrase.CODIGO_ROJO -> R.id.phraseRed
+                VoiceCommand.Phrase.ALERTA -> R.id.phraseAlert
+                VoiceCommand.Phrase.EMERGENCIA -> R.id.phraseEmergency
+            }
+        )
         s.voiceProgress.isVisible = voice.isDownloading
         s.voiceNote.text = when {
             voice.isDownloading -> "Descargando el reconocedor de voz…"
@@ -406,7 +426,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             !micOk -> "Falta el permiso de micrófono."
             voice.failed -> "El reconocedor no ha podido arrancar en este móvil. Prueba a apagar «Grabar sonido»: algunos móviles no dejan usar el micrófono para las dos cosas a la vez."
             !voice.isModelReady -> "Falta descargar el reconocedor de voz."
-            voice.isListening -> "Escuchando. Di «Cámara, guarda» y se guarda el clip."
+            voice.isListening -> "Escuchando. Di ${voice.phrase.label}, sola y con una pausa, y se guarda el clip."
             else -> "Se activa solo mientras se graba."
         }
     }
@@ -584,6 +604,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         private const val KEY_INSIDE = "camara_interior"
         private const val KEY_INSIDE_WARNED = "aviso_interior_visto"
         private const val KEY_VOICE = "voz"
+        private const val KEY_PHRASE = "frase_voz"
 
         /** Por debajo de esto el kicker avisa de que queda poco espacio. */
         private const val LOW_SPACE_GB = 2f

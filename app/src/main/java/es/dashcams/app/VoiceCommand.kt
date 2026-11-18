@@ -3,6 +3,7 @@ package es.dashcams.app
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import org.json.JSONArray
 import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
@@ -24,7 +25,7 @@ import kotlin.concurrent.thread
  * El modelo de español (unos 39 MB) no va dentro de la app: se descarga una sola vez cuando
  * el usuario activa la opción. Lo que se dice no sale nunca del móvil.
  *
- * Frases que guardan el clip: "cámara, guarda", "guarda vídeo" o "guarda clip".
+ * La frase se elige en Ajustes (ver [Phrase]) y solo cuenta si se dice sola, con una pausa antes y después.
  */
 class VoiceCommand(context: Context, private val listener: Listener) {
 
@@ -130,7 +131,7 @@ class VoiceCommand(context: Context, private val listener: Listener) {
         thread(name = "carga-voz") {
             try {
                 val m = model ?: Model(modelDir.absolutePath).also { model = it }
-                val recognizer = Recognizer(m, SAMPLE_RATE, GRAMMAR)
+                val recognizer = Recognizer(m, SAMPLE_RATE, grammar())
                 main.post {
                     loading = false
                     if (!wanted || service != null) {
@@ -187,9 +188,10 @@ class VoiceCommand(context: Context, private val listener: Listener) {
     }
 
     private val recognitionListener = object : RecognitionListener {
-        override fun onPartialResult(hypothesis: String?) = check(hypothesis, "partial")
-        override fun onResult(hypothesis: String?) = check(hypothesis, "text")
-        override fun onFinalResult(hypothesis: String?) = check(hypothesis, "text")
+        // Los resultados parciales se ignoran: solo cuenta la frase completa, dicha sola y con pausa.
+        override fun onPartialResult(hypothesis: String?) {}
+        override fun onResult(hypothesis: String?) = check(hypothesis)
+        override fun onFinalResult(hypothesis: String?) = check(hypothesis)
         override fun onError(exception: Exception?) {
             service = null
             isListening = false
@@ -199,16 +201,20 @@ class VoiceCommand(context: Context, private val listener: Listener) {
         override fun onTimeout() {}
     }
 
-    private fun check(hypothesis: String?, key: String) {
+    /**
+     * Solo salta si lo reconocido es EXACTAMENTE la frase elegida, sin nada más.
+     * Todo lo que no es la frase sale como "[unk]": si aparece, es que iba dentro de una conversación.
+     */
+    private fun check(hypothesis: String?) {
         if (hypothesis.isNullOrBlank()) return
         val text = try {
-            JSONObject(hypothesis).optString(key)
+            JSONObject(hypothesis).optString("text")
         } catch (e: Exception) {
             return
         }
-        val plain = normalize(text)
-        if (!plain.contains("guarda")) return
-        if (!(plain.contains("camara") || plain.contains("video") || plain.contains("clip"))) return
+        val heard = normalize(text).split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (heard.isEmpty() || heard.contains("[unk]")) return
+        if (heard.joinToString(" ") != normalize(phrase.text)) return
         val now = System.currentTimeMillis()
         if (now - lastTrigger < DEBOUNCE_MS) return
         lastTrigger = now
@@ -242,9 +248,33 @@ class VoiceCommand(context: Context, private val listener: Listener) {
         private const val MODEL_URL = "https://alphacephei.com/vosk/models/$MODEL_NAME.zip"
         private const val SAMPLE_RATE = 16000f
         private const val DEBOUNCE_MS = 4_000L
+    }
 
-        /** Solo estas frases (y "[unk]" para todo lo demás): así no salta con una conversación normal. */
-        private const val GRAMMAR =
-            "[\"cámara guarda\", \"camara guarda\", \"guarda vídeo\", \"guarda video\", \"guarda clip\", \"[unk]\"]"
+    /** Frases que se pueden elegir en Ajustes. Poco habituales a propósito. */
+    enum class Phrase(val text: String, val label: String) {
+        EMERGENCIA("grabación de emergencia", "«Grabación de emergencia»"),
+        CODIGO_ROJO("código rojo", "«Código rojo»"),
+        ALERTA("alerta alerta", "«Alerta, alerta»");
+
+        companion object {
+            fun fromName(name: String?): Phrase = values().firstOrNull { it.name == name } ?: EMERGENCIA
+        }
+    }
+
+    /** Frase elegida. Si se cambia mientras escucha, se vuelve a arrancar el reconocedor con la nueva. */
+    var phrase: Phrase = Phrase.EMERGENCIA
+        set(value) {
+            if (field == value) return
+            field = value
+            if (service != null) stop()
+        }
+
+    /** Solo la frase elegida (con y sin tildes) y "[unk]" para todo lo demás. */
+    private fun grammar(): String {
+        val variants = linkedSetOf(phrase.text, normalize(phrase.text))
+        val array = JSONArray()
+        variants.forEach { array.put(it) }
+        array.put("[unk]")
+        return array.toString()
     }
 }

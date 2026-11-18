@@ -16,7 +16,7 @@ los vídeos se quedan en el móvil.
 - Vista de cámara a pantalla completa (16:9, igual que el vídeo).
 - **Ajustes**: sonido, pitido al guardar, ver el encuadre completo, cámara de carretera o del interior
   (con aviso de privacidad) y control por voz.
-- **Control por voz** opcional y sin internet (Vosk): di «Cámara, guarda». El reconocedor de español
+- **Control por voz** opcional y sin internet (Vosk): di la frase elegida en Ajustes («Grabación de emergencia», «Código rojo» o «Alerta, alerta»), sola y con una pausa. El reconocedor de español
   (39 MB) se descarga solo al activarlo.
 - **Clips** con dos pestañas: *Eventos* (lo guardado) y *Últimos minutos* (la grabación en bucle, que se
   borra sola), desde donde se puede guardar un tramo.

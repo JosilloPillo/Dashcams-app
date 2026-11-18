@@ -24,7 +24,11 @@
     <string name="settings_camera_road">Carretera (cámara trasera del móvil)</string>
     <string name="settings_camera_inside">Interior del coche (cámara frontal)</string>
     <string name="settings_voice">Control por voz</string>
-    <string name="settings_voice_switch">Guardar diciendo «Cámara, guarda»</string>
+    <string name="settings_voice_switch">Guardar el clip con la voz</string>
+    <string name="settings_voice_phrase">Frase para guardar. Dila sola, con una pausa antes y después: si va dentro de una conversación no cuenta.</string>
+    <string name="phrase_emergency">«Grabación de emergencia» (recomendada)</string>
+    <string name="phrase_red">«Código rojo»</string>
+    <string name="phrase_alert">«Alerta, alerta»</string>
     <string name="inside_title">Vas a grabar el interior</string>
     <string name="inside_text">Grabarás a quien vaya en el coche. Avísale antes. Si usas el coche para trabajar (taxi, VTC, reparto), es obligatorio informar a los pasajeros de que hay una cámara.</string>
     <string name="inside_ok">Entendido</string>

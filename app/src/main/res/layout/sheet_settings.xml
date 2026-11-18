@@ -112,6 +112,46 @@
             android:layout_height="wrap_content"
             android:text="@string/settings_voice_switch" />
 
+        <TextView
+            style="@style/Dashcams.SettingsNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/settings_voice_phrase" />
+
+        <RadioGroup
+            android:id="@+id/phraseGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <RadioButton
+                android:id="@+id/phraseEmergency"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/phrase_emergency"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+            <RadioButton
+                android:id="@+id/phraseRed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/phrase_red"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+            <RadioButton
+                android:id="@+id/phraseAlert"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/phrase_alert"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+        </RadioGroup>
+
         <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/voiceProgress"
             android:layout_width="match_parent"
