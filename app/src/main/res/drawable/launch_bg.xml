@@ -4,7 +4,7 @@
     <item android:drawable="@drawable/bg_brand" />
     <item
         android:width="96dp"
-        android:height="111dp"
+        android:height="117dp"
         android:drawable="@drawable/escudo"
         android:gravity="center" />
 </layer-list>
