@@ -214,6 +214,10 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         updateStatus()
     }
 
+    override fun onDashcamInfo(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
     // ---- Botón GUARDAR, teclas de volumen y mandos Bluetooth ----
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

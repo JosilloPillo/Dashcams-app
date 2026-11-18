@@ -3,10 +3,15 @@ package es.dashcams.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
+import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -39,6 +44,7 @@ class DashcamController(
     interface Listener {
         fun onCameraReady()
         fun onDashcamError(message: String)
+        fun onDashcamInfo(message: String)
     }
 
     private val executor = ContextCompat.getMainExecutor(activity)
@@ -97,8 +103,26 @@ class DashcamController(
                 vc.setTargetRotation(rotation)
                 pv.setTargetRotation(rotation)
 
-                provider.unbindAll()
-                provider.bindToLifecycle(activity, CameraSelector.DEFAULT_BACK_CAMERA, pv, vc)
+                // Primero intentamos la cámara trasera más angular; si da problemas, la normal.
+                val widest = widestBackCamera(provider)
+                val candidates = listOfNotNull(widest?.first, CameraSelector.DEFAULT_BACK_CAMERA)
+                var camera: Camera? = null
+                var lastError: Exception? = null
+                for (selector in candidates) {
+                    try {
+                        provider.unbindAll()
+                        camera = provider.bindToLifecycle(activity, selector, pv, vc)
+                        if (selector !== CameraSelector.DEFAULT_BACK_CAMERA && widest?.second == true) {
+                            listener.onDashcamInfo("Usando la cámara gran angular")
+                        }
+                        break
+                    } catch (e: Exception) {
+                        lastError = e
+                    }
+                }
+                val bound = camera ?: throw (lastError ?: IllegalStateException("sin cámara trasera"))
+
+                applyWidestZoom(bound)
 
                 videoCapture = vc
                 preview = pv
@@ -107,6 +131,64 @@ class DashcamController(
                 listener.onDashcamError("No se pudo abrir la cámara: ${e.message}")
             }
         }, executor)
+    }
+
+    /**
+     * Busca la cámara trasera con más campo de visión (sensor más ancho respecto a la focal).
+     * Devuelve su selector y si es distinta de la cámara trasera principal.
+     * Ojo: algunos móviles no dejan usar su gran angular a apps que no sean la de cámara de serie.
+     */
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun widestBackCamera(provider: ProcessCameraProvider): Pair<CameraSelector, Boolean>? {
+        var bestId: String? = null
+        var bestRatio = 0f
+        var firstBackId: String? = null
+        for (info in provider.availableCameraInfos) {
+            try {
+                val c2 = Camera2CameraInfo.from(info)
+                val facing = c2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)
+                if (facing != CameraCharacteristics.LENS_FACING_BACK) continue
+                if (firstBackId == null) firstBackId = c2.cameraId
+                val sensor = c2.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: continue
+                val focal = c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                    ?.minOrNull() ?: continue
+                if (focal <= 0f) continue
+                val ratio = maxOf(sensor.width, sensor.height) / focal
+                if (ratio > bestRatio) {
+                    bestRatio = ratio
+                    bestId = c2.cameraId
+                }
+            } catch (e: Exception) {
+                // Cámara rara que no informa bien: la saltamos.
+            }
+        }
+        val id = bestId ?: return null
+        val selector = CameraSelector.Builder()
+            .addCameraFilter { infos ->
+                infos.filter { info ->
+                    try {
+                        Camera2CameraInfo.from(info).cameraId == id
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+            }
+            .build()
+        return selector to (id != firstBackId)
+    }
+
+    /** En móviles que juntan varias lentes en una sola cámara, el gran angular se consigue con zoom < 1x. */
+    private fun applyWidestZoom(camera: Camera) {
+        var applied = false
+        camera.cameraInfo.zoomState.observe(activity) { state ->
+            if (!applied && state != null && state.minZoomRatio < 0.99f) {
+                applied = true
+                camera.cameraControl.setZoomRatio(state.minZoomRatio)
+                listener.onDashcamInfo(
+                    String.format(java.util.Locale.forLanguageTag("es-ES"), "Gran angular activado (zoom %.1fx)", state.minZoomRatio)
+                )
+            }
+        }
     }
 
     /** El móvil se ha girado 180º (soporte del revés): los próximos tramos salen derechos. */

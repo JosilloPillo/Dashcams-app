@@ -5,10 +5,12 @@
         android:name="android.hardware.camera.any"
         android:required="true" />
 
-    <!-- Cámara y micrófono (el sonido se puede apagar desde la app). Sin permiso de internet:
-         los vídeos nunca salen del móvil salvo que el usuario los comparta. -->
+    <!-- Cámara y micrófono (el sonido se puede apagar desde la app).
+         Internet solo se usa cuando el usuario envía un clip a dashcams.es desde Clips > Compartir:
+         la app no manda nada más a ningún sitio. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <uses-feature
         android:name="android.hardware.microphone"
@@ -35,6 +37,11 @@
         <activity
             android:name=".GalleryActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".SendClipActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

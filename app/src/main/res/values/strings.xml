@@ -26,4 +26,23 @@
     <string name="delete_title">¿Borrar este clip?</string>
     <string name="share_title">Compartir clip</string>
     <string name="no_player">No hay ningún reproductor de vídeo instalado</string>
+
+    <string name="share_web">Enviar a Dashcams España (web)</string>
+    <string name="share_other">Compartir con otra app</string>
+
+    <string name="send_title">Enviar a Dashcams España</string>
+    <string name="send_intro">Se envía igual que desde dashcams.es. Solo se sube lo que elijas aquí y cuando pulses Enviar. Mejor con WiFi: cada minuto ocupa unos 100 MB.</string>
+    <string name="send_videos">Vídeos de este evento</string>
+    <string name="send_correo">Correo electrónico*</string>
+    <string name="send_aparecer">¿Cómo quieres aparecer? (@usuario, apodo o «anónimo»)</string>
+    <string name="send_lugar">Lugar (ciudad o pueblo)</string>
+    <string name="send_carretera">Carretera o calle</string>
+    <string name="send_descripcion">¿Qué pasó?</string>
+    <string name="send_autor">He grabado yo el vídeo o tengo permiso de quien lo grabó.*</string>
+    <string name="send_cesion">Acepto las condiciones de envío y autorizo a Dashcams España a publicar el vídeo.*</string>
+    <string name="send_edad">Soy mayor de edad.*</string>
+    <string name="send_privacidad">Acepto la política de privacidad.*</string>
+    <string name="send_leer_condiciones">Leer condiciones de envío</string>
+    <string name="send_leer_privacidad">Leer política de privacidad</string>
+    <string name="send_button">Enviar clip</string>
 </resources>

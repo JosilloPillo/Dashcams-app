@@ -64,7 +64,24 @@ class GalleryActivity : AppCompatActivity() {
         }
     }
 
+    /** Compartir: a la web de Dashcams España directamente o con cualquier otra app. */
     private fun share(file: File) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.share_title)
+            .setItems(arrayOf(getString(R.string.share_web), getString(R.string.share_other))) { _, which ->
+                if (which == 0) {
+                    startActivity(
+                        Intent(this, SendClipActivity::class.java)
+                            .putExtra(SendClipActivity.EXTRA_FILE, file.absolutePath)
+                    )
+                } else {
+                    shareWithOtherApp(file)
+                }
+            }
+            .show()
+    }
+
+    private fun shareWithOtherApp(file: File) {
         val intent = Intent(Intent.ACTION_SEND)
             .setType("video/mp4")
             .putExtra(Intent.EXTRA_STREAM, uriFor(file))
@@ -126,6 +143,13 @@ object ClipNames {
         val t = m.groupValues[2]
         return "Evento ${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)} · " +
             "${t.substring(0, 2)}:${t.substring(2, 4)}:${t.substring(4, 6)}"
+    }
+
+    /** Todas las partes guardadas del mismo evento que [file] (parte 1, 2, 3), en orden. */
+    fun eventParts(file: File, saved: List<File>): List<File> {
+        val m = pattern.matchEntire(file.name) ?: return if (file.exists()) listOf(file) else emptyList()
+        val prefix = "evento_${m.groupValues[1]}_${m.groupValues[2]}_parte"
+        return saved.filter { it.name.startsWith(prefix) }.sortedBy { it.name }
     }
 
     fun subtitle(file: File): String {
