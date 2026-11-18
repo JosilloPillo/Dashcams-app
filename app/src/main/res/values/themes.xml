@@ -7,7 +7,6 @@
         <item name="colorOnSecondary">@color/azul_marino</item>
         <item name="colorSurface">@color/azul_marino</item>
         <item name="colorOnSurface">@android:color/white</item>
-        <item name="colorSurfaceContainerHigh">@color/azul_marino</item>
         <item name="colorOutline">@color/pastilla_borde</item>
         <item name="android:fontFamily">@font/public_sans_regular</item>
         <item name="fontFamily">@font/public_sans_regular</item>
@@ -21,7 +20,7 @@
     <!-- ===== Textos ===== -->
 
     <!-- Kicker: pastilla pequeña arriba, Public Sans 600 -->
-    <style name="Dashcams.KickerText">
+    <style name="Dashcams.KickerText" parent="">
         <item name="android:textColor">@android:color/white</item>
         <item name="android:fontFamily">@font/public_sans_semibold</item>
         <item name="android:textSize">14sp</item>
@@ -30,7 +29,7 @@
     </style>
 
     <!-- Título: Barlow Condensed 700 grande, con una palabra en degradado (desde el código) -->
-    <style name="Dashcams.Title">
+    <style name="Dashcams.Title" parent="">
         <item name="android:textColor">@android:color/white</item>
         <item name="android:fontFamily">@font/barlow_condensed_bold</item>
         <item name="android:textSize">40sp</item>
@@ -38,13 +37,13 @@
         <item name="android:gravity">center</item>
     </style>
 
-    <style name="Dashcams.Support">
+    <style name="Dashcams.Support" parent="">
         <item name="android:textColor">@color/texto_suave</item>
         <item name="android:fontFamily">@font/public_sans_regular</item>
         <item name="android:textSize">15sp</item>
     </style>
 
-    <style name="Dashcams.Wordmark">
+    <style name="Dashcams.Wordmark" parent="">
         <item name="android:textColor">@android:color/white</item>
         <item name="android:fontFamily">@font/barlow_condensed_bold</item>
         <item name="android:textSize">22sp</item>
