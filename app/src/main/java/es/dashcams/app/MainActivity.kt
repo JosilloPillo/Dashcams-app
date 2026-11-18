@@ -45,9 +45,26 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
     private var batteryLevel = -1
     private var charging = false
 
-    private val requestCamera =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) dashcam.startCamera() else binding.statusText.setText(R.string.need_camera)
+    private val prefs by lazy { getSharedPreferences("ajustes", MODE_PRIVATE) }
+    private var cameraStarted = false
+
+    private val requestPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            if (hasCameraPermission()) {
+                startCameraOnce()
+            } else {
+                binding.statusText.setText(R.string.need_camera)
+            }
+            if (dashcam.soundOn && !hasAudioPermission()) {
+                Toast.makeText(
+                    this,
+                    "Sin permiso de micrófono se graba sin sonido. Puedes darlo en Ajustes > Aplicaciones.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else if (dashcam.soundOn && dashcam.isLoopRunning) {
+                Toast.makeText(this, "El sonido se grabará desde el siguiente minuto", Toast.LENGTH_SHORT).show()
+            }
+            updateSoundButton()
         }
 
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -89,20 +106,61 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
         storage = ClipStorage(this)
         dashcam = DashcamController(this, binding.previewView, storage, this)
+        dashcam.soundOn = prefs.getBoolean(KEY_SOUND, true) // sonido activado por defecto
+        updateSoundButton()
 
         binding.btnSave.setOnClickListener { saveEvent() }
         binding.btnStartStop.setOnClickListener { toggleRecording() }
+        binding.btnSound.setOnClickListener { toggleSound() }
         binding.btnClips.setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
         binding.btnDark.setOnClickListener { setDarkMode(true) }
         binding.darkOverlay.setOnClickListener { setDarkMode(false) }
 
-        if (hasCameraPermission()) {
-            dashcam.startCamera()
-        } else {
-            requestCamera.launch(Manifest.permission.CAMERA)
+        val missing = buildList {
+            if (!hasCameraPermission()) add(Manifest.permission.CAMERA)
+            if (dashcam.soundOn && !hasAudioPermission()) add(Manifest.permission.RECORD_AUDIO)
         }
+        if (hasCameraPermission()) startCameraOnce()
+        if (missing.isNotEmpty()) requestPermissions.launch(missing.toTypedArray())
+    }
+
+    private fun startCameraOnce() {
+        if (cameraStarted || !hasCameraPermission()) return
+        cameraStarted = true
+        dashcam.startCamera()
+    }
+
+    // ---- Sonido ----
+
+    private fun toggleSound() {
+        if (!hasAudioPermission()) {
+            // Quiere sonido pero no hay permiso: lo pedimos (si lo negó para siempre, el aviso le dice dónde darlo).
+            dashcam.soundOn = true
+            prefs.edit().putBoolean(KEY_SOUND, true).apply()
+            requestPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+            return
+        }
+        val on = !dashcam.soundOn
+        dashcam.soundOn = on
+        prefs.edit().putBoolean(KEY_SOUND, on).apply()
+        Toast.makeText(
+            this,
+            if (on) "Sonido activado" else "Sonido desactivado: los vídeos se graban sin audio",
+            Toast.LENGTH_SHORT
+        ).show()
+        updateSoundButton()
+    }
+
+    private fun updateSoundButton() {
+        binding.btnSound.setText(
+            when {
+                !hasAudioPermission() -> R.string.sound_no_permission
+                dashcam.soundOn -> R.string.sound_on
+                else -> R.string.sound_off
+            }
+        )
     }
 
     override fun onStart() {
@@ -306,7 +364,13 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
+    private fun hasAudioPermission() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
     companion object {
+        private const val KEY_SOUND = "sonido"
+
         /** A partir de aquí avisamos en ámbar. */
         const val HEAT_WARN_C = 45f
         /** A partir de aquí paramos de grabar para no dañar la batería. */

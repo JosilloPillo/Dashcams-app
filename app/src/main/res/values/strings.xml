@@ -12,6 +12,9 @@
     <string name="saved">¡GUARDADO!</string>
     <string name="clips">Clips</string>
     <string name="dark">Pantalla negra</string>
+    <string name="sound_on">Sonido: Sí</string>
+    <string name="sound_off">Sonido: No</string>
+    <string name="sound_no_permission">Sonido: sin permiso</string>
 
     <string name="gallery_title">Clips guardados</string>
     <string name="gallery_subtitle">La grabación se pausa mientras estás aquí</string>

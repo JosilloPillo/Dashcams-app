@@ -11,7 +11,7 @@ los vídeos se quedan en el móvil.
 - **Pantalla negra**: tapa la pantalla y baja el brillo para que el móvil se caliente menos. Sigue grabando.
 - Temperatura y batería en pantalla. A 50 °C para de grabar y vuelve a empezar sola por debajo de 42 °C.
 - **Clips**: ver, compartir o borrar los clips guardados.
-- Sin audio (por privacidad) y sin permiso de internet.
+- Graba con sonido; se puede apagar con el botón "Sonido" (el cambio es inmediato). Sin permiso de internet.
 
 Mínimo Android 8.
 

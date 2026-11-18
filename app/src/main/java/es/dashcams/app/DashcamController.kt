@@ -1,5 +1,8 @@
 package es.dashcams.app
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
@@ -55,6 +58,16 @@ class DashcamController(
     private val pendingProtection = mutableMapOf<File, Pair<String, Int>>()
     /** Si no es null, el próximo tramo que empiece se guardará como parte 3 de este evento. */
     private var nextSegmentEvent: String? = null
+
+    /**
+     * Sonido activado o no. Si hay permiso de micrófono, todos los tramos llevan pista de audio
+     * y esto solo la silencia o la reactiva: el cambio se nota al momento, sin cortar la grabación.
+     */
+    var soundOn: Boolean = true
+        set(value) {
+            field = value
+            recording?.mute(!value)
+        }
 
     val isCameraReady: Boolean get() = videoCapture != null
     val isLoopRunning: Boolean get() = loopWanted
@@ -135,6 +148,11 @@ class DashcamController(
         return true
     }
 
+    private fun hasAudioPermission(): Boolean =
+        ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
+    @SuppressLint("MissingPermission") // se comprueba con hasAudioPermission()
     private fun startSegment() {
         val vc = videoCapture ?: return
         val file = storage.newSegmentFile()
@@ -146,16 +164,20 @@ class DashcamController(
         nextSegmentEvent = null
 
         try {
-            // Sin audio a propósito: por privacidad (AEPD) no grabamos conversaciones.
-            recording = vc.output
-                .prepareRecording(activity, options)
-                .start(executor) { event ->
-                    if (event is VideoRecordEvent.Start) {
-                        currentStart = System.currentTimeMillis()
-                    } else if (event is VideoRecordEvent.Finalize) {
-                        onFinalized(file, event)
-                    }
+            var pending = vc.output.prepareRecording(activity, options)
+            // Con permiso de micrófono el tramo lleva audio; si el usuario lo ha apagado, va silenciado.
+            val withAudio = hasAudioPermission()
+            if (withAudio) pending = pending.withAudioEnabled()
+
+            val rec = pending.start(executor) { event ->
+                if (event is VideoRecordEvent.Start) {
+                    currentStart = System.currentTimeMillis()
+                } else if (event is VideoRecordEvent.Finalize) {
+                    onFinalized(file, event)
                 }
+            }
+            if (withAudio && !soundOn) rec.mute(true)
+            recording = rec
             currentFile = file
             currentStart = System.currentTimeMillis()
         } catch (e: Exception) {

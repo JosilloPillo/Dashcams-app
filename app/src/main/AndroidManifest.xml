@@ -5,9 +5,14 @@
         android:name="android.hardware.camera.any"
         android:required="true" />
 
-    <!-- Solo cámara. Sin micrófono (audio apagado por privacidad) y sin internet:
+    <!-- Cámara y micrófono (el sonido se puede apagar desde la app). Sin permiso de internet:
          los vídeos nunca salen del móvil salvo que el usuario los comparta. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
 
     <application
         android:allowBackup="false"
