@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black">
+    android:background="@color/fondo_profundo">
 
     <!-- Vista de cámara: fitCenter para ver exactamente el encuadre que se graba -->
     <androidx.camera.view.PreviewView
@@ -12,125 +12,235 @@
         android:layout_height="match_parent"
         app:scaleType="fitCenter" />
 
+    <!-- Degradados azul marino arriba y abajo para que se lean los controles sobre la imagen -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:layout_gravity="top"
+        android:background="@drawable/bg_top_scrim" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_bottom_scrim" />
+
     <FrameLayout
         android:id="@+id/controls"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Barra superior: estado y temperatura -->
-        <LinearLayout
+        <!-- ===== Arriba: marca · kicker REC · temperatura ===== -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="top"
-            android:background="@color/scrim"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
             android:paddingStart="16dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="8dp">
+            android:paddingTop="12dp"
+            android:paddingEnd="16dp">
 
-            <View
-                android:id="@+id/recDot"
-                android:layout_width="12dp"
-                android:layout_height="12dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/rec_dot"
-                android:visibility="invisible" />
-
-            <TextView
-                android:id="@+id/statusText"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/status_starting"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
+                android:layout_gravity="start|center_vertical"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="30dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/escudo" />
+
+                <TextView
+                    android:id="@+id/brandText"
+                    style="@style/Dashcams.Wordmark"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <!-- Kicker: punto rojo que parpadea como un REC + estado -->
+            <LinearLayout
+                android:id="@+id/kicker"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/bg_pill_dark"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="18dp"
+                android:paddingBottom="8dp">
+
+                <View
+                    android:id="@+id/recDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/rec_dot"
+                    android:visibility="invisible" />
+
+                <TextView
+                    android:id="@+id/statusText"
+                    style="@style/Dashcams.KickerText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/status_starting" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tempText"
+                style="@style/Dashcams.KickerText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@android:color/white"
-                android:textSize="16sp" />
-        </LinearLayout>
+                android:layout_gravity="end|center_vertical"
+                android:background="@drawable/bg_pill_dark"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="8dp" />
+        </FrameLayout>
 
-        <!-- Barra inferior: botones -->
+        <!-- ===== Abajo: botones ===== -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:background="@color/scrim"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="12dp">
 
-            <com.google.android.material.button.MaterialButton
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnStartStop"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Dashcams.Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
                 android:text="@string/record"
-                android:textColor="@android:color/white" />
+                android:textSize="14sp" />
 
-            <com.google.android.material.button.MaterialButton
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnSound"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Dashcams.Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
+                android:layout_marginStart="8dp"
                 android:text="@string/sound_on"
-                android:textColor="@android:color/white" />
+                android:textSize="14sp" />
 
-            <com.google.android.material.button.MaterialButton
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnSave"
+                style="@style/Dashcams.Cta"
                 android:layout_width="wrap_content"
-                android:layout_height="72dp"
-                android:layout_marginEnd="12dp"
-                android:minWidth="200dp"
+                android:layout_height="wrap_content"
+                android:minWidth="180dp"
                 android:text="@string/save"
-                android:textColor="@android:color/white"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                app:backgroundTint="@color/rojo" />
+                android:textSize="22sp" />
 
-            <com.google.android.material.button.MaterialButton
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnClips"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Dashcams.Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
                 android:text="@string/clips"
-                android:textColor="@android:color/white" />
+                android:textSize="14sp" />
 
-            <com.google.android.material.button.MaterialButton
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btnDark"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Dashcams.Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:text="@string/dark"
-                android:textColor="@android:color/white" />
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- ===== Aviso "Clip guardado": chip blanco con check verde que entra con rebote ===== -->
+        <LinearLayout
+            android:id="@+id/savedChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="18dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="20dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_check_circle" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/barlow_condensed_bold"
+                    android:text="@string/saved_chip_title"
+                    android:textColor="@color/azul_marino"
+                    android:textSize="28sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/public_sans_regular"
+                    android:text="@string/saved_chip_text"
+                    android:textColor="@color/marino_suave"
+                    android:textSize="14sp" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 
     <!-- Modo pantalla negra: tapa todo y baja el brillo al mínimo para que el móvil se caliente menos.
          Sigue grabando por debajo. Tocar en cualquier sitio lo quita. -->
-    <FrameLayout
+    <LinearLayout
         android:id="@+id/darkOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@android:color/black"
         android:clickable="true"
         android:focusable="true"
+        android:gravity="center"
+        android:orientation="vertical"
         android:visibility="gone">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="46dp"
+            android:alpha="0.3"
+            android:contentDescription="@null"
+            android:src="@drawable/escudo" />
 
         <TextView
             android:id="@+id/darkText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:textColor="@color/gris_tenue"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/public_sans_regular"
+            android:textColor="@color/texto_tenue"
             android:textSize="14sp" />
-    </FrameLayout>
+    </LinearLayout>
 </FrameLayout>

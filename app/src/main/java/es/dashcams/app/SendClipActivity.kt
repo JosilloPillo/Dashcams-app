@@ -1,6 +1,7 @@
 package es.dashcams.app
 
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -11,6 +12,8 @@ import android.widget.CheckBox
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import com.google.android.material.textfield.TextInputEditText
 import es.dashcams.app.databinding.ActivitySendBinding
@@ -43,7 +46,15 @@ class SendClipActivity : AppCompatActivity() {
         binding = ActivitySendBinding.inflate(layoutInflater)
         setContentView(binding.root)
         onBackPressedDispatcher.addCallback(this, blockBackWhileSending)
-        binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        binding.btnBack.setOnClickListener { onBackPressedDispatcher.onBackPressed() }
+
+        // Cabecera como en los vídeos: marca, kicker, título con una palabra en degradado
+        binding.brandText.text = Brand.wordmark()
+        binding.title.text = Brand.highlight("Envíalo al canal", "canal")
+        Brand.enter(binding.kicker, delayMs = 50, fromDp = -12f, durationMs = 400)
+        Brand.enter(binding.title, delayMs = 150, fromDp = 20f)
+        // La carretera solo se mueve mientras se sube el vídeo
+        binding.lanes.running = false
 
         val chosen = intent.getStringExtra(EXTRA_FILE)?.let { File(it) }
         val eventFiles = if (chosen == null) emptyList() else ClipNames.eventParts(chosen, ClipStorage(this).savedClips())
@@ -52,12 +63,16 @@ class SendClipActivity : AppCompatActivity() {
             finish()
             return
         }
-        binding.toolbar.subtitle = ClipNames.title(eventFiles.first())
+        binding.eventText.text = "Evento del " + ClipNames.title(eventFiles.first())
 
+        val navy = ContextCompat.getColor(this, R.color.azul_marino)
         for (file in eventFiles) {
             val check = CheckBox(this).apply {
                 text = ClipNames.subtitle(file)
                 isChecked = true
+                setTextColor(navy)
+                buttonTintList = ColorStateList.valueOf(navy)
+                typeface = ResourcesCompat.getFont(this@SendClipActivity, R.font.public_sans_semibold)
                 setOnCheckedChangeListener { _, _ -> updateSize() }
             }
             binding.partsBox.addView(check)
@@ -101,9 +116,10 @@ class SendClipActivity : AppCompatActivity() {
             else -> null
         }
         if (problem != null) {
-            binding.statusText.text = problem
+            showResult(ok = false, title = "Falta algo", text = problem)
             return
         }
+        binding.resultChip.isVisible = false
 
         prefs.edit()
             .putString(KEY_CORREO, correo)
@@ -152,24 +168,41 @@ class SendClipActivity : AppCompatActivity() {
         binding.progress.setProgressCompat(100, true)
         val who = value(binding.inputAparecer)
         val thanks = if (who.isNotEmpty() && !who.equals("anónimo", true) && !who.equals("anonimo", true)) ", $who" else ""
-        binding.statusText.text =
-            "¡Clip enviado! Gracias$thanks. Hemos recibido ${if (count > 1) "$count vídeos" else "tu vídeo"}. " +
+        binding.statusText.text = ""
+        showResult(
+            ok = true,
+            title = "¡Clip enviado!",
+            text = "Gracias$thanks. Hemos recibido ${if (count > 1) "$count vídeos" else "tu vídeo"}. " +
                 "Si lo publicamos, te avisaremos por correo."
+        )
         binding.btnSend.text = "Enviado"
         binding.btnSend.isEnabled = false
+        binding.btnSend.alpha = 0.6f
     }
 
     private fun onFailed(message: String) {
         setSending(false)
         binding.progress.isVisible = false
-        binding.statusText.text = message
+        binding.statusText.text = ""
+        showResult(ok = false, title = "No se ha enviado", text = message)
         binding.btnSend.text = "Volver a intentarlo"
+    }
+
+    /** Chip de resultado de la guía: check verde si ha ido bien, aviso rojo si no. */
+    private fun showResult(ok: Boolean, title: String, text: String) {
+        binding.resultIcon.setImageResource(if (ok) R.drawable.ic_check_circle else R.drawable.ic_alert_circle)
+        binding.resultTitle.text = title
+        binding.resultText.text = text
+        binding.resultChip.isVisible = true
+        Brand.pop(binding.resultChip, fromRightDp = 40f)
+        binding.root.post { binding.root.smoothScrollTo(0, binding.resultChip.bottom) }
     }
 
     private fun setSending(on: Boolean) {
         sending = on
         blockBackWhileSending.isEnabled = on
         binding.btnSend.isEnabled = !on
+        binding.lanes.running = on
         binding.progress.isVisible = true
         if (on) {
             binding.progress.setProgressCompat(0, false)

@@ -95,6 +95,15 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
     private val resetSaveButton = Runnable { binding.btnSave.setText(R.string.save) }
 
+    private val hideSavedChip = Runnable {
+        binding.savedChip.animate()
+            .alpha(0f)
+            .translationY(-12f * resources.displayMetrics.density)
+            .setDuration(250)
+            .withEndAction { binding.savedChip.visibility = android.view.View.GONE }
+            .start()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -108,6 +117,11 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         dashcam = DashcamController(this, binding.previewView, storage, this)
         dashcam.soundOn = prefs.getBoolean(KEY_SOUND, true) // sonido activado por defecto
         updateSoundButton()
+
+        // Marca y entrada de los elementos como en los vídeos: kicker bajando, botones con rebote
+        binding.brandText.text = Brand.wordmark()
+        Brand.enter(binding.kicker, delayMs = 50, fromDp = -12f, durationMs = 400)
+        Brand.pop(binding.btnSave, delayMs = 250)
 
         binding.btnSave.setOnClickListener { saveEvent() }
         binding.btnStartStop.setOnClickListener { toggleRecording() }
@@ -238,13 +252,17 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
     private fun saveEvent() {
         if (dashcam.saveEvent()) {
             binding.btnSave.setText(R.string.saved)
+            Brand.bump(binding.btnSave)
             ui.removeCallbacks(resetSaveButton)
             ui.postDelayed(resetSaveButton, 2_500L)
-            Toast.makeText(
-                this,
-                "Guardado: el minuto anterior, el actual y el siguiente",
-                Toast.LENGTH_SHORT
-            ).show()
+
+            // Chip blanco con check verde que entra con rebote y se va solo
+            ui.removeCallbacks(hideSavedChip)
+            binding.savedChip.animate().cancel()
+            binding.savedChip.translationY = 0f
+            binding.savedChip.visibility = android.view.View.VISIBLE
+            Brand.pop(binding.savedChip, fromRightDp = 40f)
+            ui.postDelayed(hideSavedChip, 2_200L)
         } else {
             Toast.makeText(this, R.string.not_recording, Toast.LENGTH_SHORT).show()
         }
@@ -295,33 +313,35 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         val savedCount = storage.savedClips().size
         val freeGb = storage.freeBytes() / (1024f * 1024f * 1024f)
 
+        // Kicker corto, como en los vídeos: 2-4 palabras
         binding.statusText.text = when {
-            pausedForHeat -> "En pausa por calor · se reanuda al enfriarse"
+            pausedForHeat -> "Pausa por calor"
             recording -> {
                 val s = dashcam.segmentElapsedMs / 1000L
-                String.format(
-                    spanish,
-                    "REC %02d:%02d · %d guardados · %.1f GB libres",
-                    s / 60, s % 60, savedCount, freeGb
-                )
+                val extra = when {
+                    freeGb < LOW_SPACE_GB -> "poco espacio"
+                    savedCount == 1 -> "1 clip"
+                    else -> "$savedCount clips"
+                }
+                String.format(spanish, "REC %02d:%02d · %s", s / 60, s % 60, extra)
             }
-            !dashcam.isCameraReady && !hasCameraPermission() -> getString(R.string.need_camera)
+            !dashcam.isCameraReady && !hasCameraPermission() -> "Falta permiso de cámara"
             !dashcam.isCameraReady -> getString(R.string.status_starting)
-            else -> "Parado · $savedCount guardados"
+            else -> "Parado · $savedCount clips"
         }
 
         if (batteryTemp > 0f) {
             binding.tempText.text = String.format(
                 spanish,
-                "%.0f °C · %d%%%s",
-                batteryTemp, batteryLevel, if (charging) " · cargando" else ""
+                "%.0f °C · %d %%%s",
+                batteryTemp, batteryLevel, if (charging) " ⚡" else ""
             )
             binding.tempText.setTextColor(
                 ContextCompat.getColor(
                     this,
                     when {
-                        batteryTemp >= HEAT_STOP_C -> R.color.rojo
-                        batteryTemp >= HEAT_WARN_C -> R.color.ambar
+                        batteryTemp >= HEAT_STOP_C -> R.color.rojo_rec
+                        batteryTemp >= HEAT_WARN_C -> R.color.amarillo
                         else -> android.R.color.white
                     }
                 )
@@ -374,6 +394,8 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
     companion object {
         private const val KEY_SOUND = "sonido"
+        /** Por debajo de esto el kicker avisa de que queda poco espacio. */
+        private const val LOW_SPACE_GB = 2f
 
         /** A partir de aquí avisamos en ámbar. */
         const val HEAT_WARN_C = 45f

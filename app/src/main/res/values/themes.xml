@@ -1,10 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Dashcams" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="colorPrimary">@color/rojo</item>
-        <item name="colorOnPrimary">@android:color/white</item>
-        <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:statusBarColor">@android:color/black</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
+    <style name="Theme.Dashcams.Base" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/amarillo_medio</item>
+        <item name="colorOnPrimary">@color/azul_marino</item>
+        <item name="colorSecondary">@color/amarillo_medio</item>
+        <item name="colorOnSecondary">@color/azul_marino</item>
+        <item name="colorSurface">@color/azul_marino</item>
+        <item name="colorOnSurface">@android:color/white</item>
+        <item name="colorSurfaceContainerHigh">@color/azul_marino</item>
+        <item name="colorOutline">@color/pastilla_borde</item>
+        <item name="android:fontFamily">@font/public_sans_regular</item>
+        <item name="fontFamily">@font/public_sans_regular</item>
+        <item name="android:windowBackground">@drawable/launch_bg</item>
+        <item name="android:statusBarColor">@color/fondo_profundo</item>
+        <item name="android:navigationBarColor">@color/fondo_profundo</item>
+    </style>
+
+    <style name="Theme.Dashcams" parent="Theme.Dashcams.Base" />
+
+    <!-- ===== Textos ===== -->
+
+    <!-- Kicker: pastilla pequeña arriba, Public Sans 600 -->
+    <style name="Dashcams.KickerText">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:fontFamily">@font/public_sans_semibold</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <!-- Título: Barlow Condensed 700 grande, con una palabra en degradado (desde el código) -->
+    <style name="Dashcams.Title">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:textSize">40sp</item>
+        <item name="android:lineSpacingMultiplier">0.92</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="Dashcams.Support">
+        <item name="android:textColor">@color/texto_suave</item>
+        <item name="android:fontFamily">@font/public_sans_regular</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="Dashcams.Wordmark">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:textSize">22sp</item>
+    </style>
+
+    <!-- ===== Botones ===== -->
+
+    <!-- Pastilla translúcida (como el kicker) -->
+    <style name="Dashcams.Pill" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/bg_pill_button</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:fontFamily">@font/public_sans_semibold</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <!-- Llamada a la acción: degradado amarillo, texto azul marino en negrita, sombra naranja -->
+    <style name="Dashcams.Cta" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/bg_cta</item>
+        <item name="android:textColor">@color/azul_marino</item>
+        <item name="android:fontFamily">@font/public_sans_semibold</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">64dp</item>
+        <item name="android:paddingStart">32dp</item>
+        <item name="android:paddingEnd">32dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <!-- Acciones dentro de las tarjetas blancas -->
+    <style name="Dashcams.CardAction" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:textColor">@color/azul_marino</item>
+        <item name="android:fontFamily">@font/public_sans_semibold</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
     </style>
 </resources>

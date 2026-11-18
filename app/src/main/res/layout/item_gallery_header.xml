@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingTop="18dp">
+
+    <!-- Kicker -->
+    <LinearLayout
+        android:id="@+id/kicker"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_pill"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="18dp"
+        android:paddingBottom="8dp">
+
+        <View
+            android:id="@+id/recDot"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="@drawable/rec_dot" />
+
+        <TextView
+            style="@style/Dashcams.KickerText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/gallery_kicker" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/title"
+        style="@style/Dashcams.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginEnd="24dp" />
+
+    <TextView
+        style="@style/Dashcams.Support"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="24dp"
+        android:gravity="center"
+        android:text="@string/gallery_subtitle" />
+
+    <es.dashcams.app.LaneView
+        android:id="@+id/lanes"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/emptyText"
+        style="@style/Dashcams.Support"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="28dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="28dp"
+        android:gravity="center"
+        android:text="@string/gallery_empty"
+        android:textColor="@android:color/white"
+        android:visibility="gone" />
+</LinearLayout>

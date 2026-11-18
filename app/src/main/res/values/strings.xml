@@ -10,6 +10,8 @@
     <string name="record">Grabar</string>
     <string name="save">GUARDAR</string>
     <string name="saved">¡GUARDADO!</string>
+    <string name="saved_chip_title">Clip guardado</string>
+    <string name="saved_chip_text">Minuto anterior, actual y siguiente</string>
     <string name="clips">Clips</string>
     <string name="dark">Pantalla negra</string>
     <string name="sound_on">Sonido: Sí</string>
@@ -17,7 +19,10 @@
     <string name="sound_no_permission">Sonido: sin permiso</string>
 
     <string name="gallery_title">Clips guardados</string>
+    <string name="gallery_kicker">Tus clips</string>
     <string name="gallery_subtitle">La grabación se pausa mientras estás aquí</string>
+    <string name="back">Volver</string>
+    <string name="send_kicker">Envía tu clip</string>
     <string name="gallery_empty">Aún no has guardado ningún clip.\n\nMientras grabas, pulsa GUARDAR o una tecla de volumen y se guardará el minuto anterior, el actual y el siguiente.</string>
     <string name="play">Ver</string>
     <string name="share">Compartir</string>

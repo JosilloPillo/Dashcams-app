@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botón principal: degradado amarillo con sombra naranja debajo -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#331F2147">
+    <item>
+        <layer-list>
+            <item android:top="8dp" android:left="6dp" android:right="6dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="999dp" />
+                    <solid android:color="@color/sombra_naranja" />
+                </shape>
+            </item>
+            <item android:bottom="8dp">
+                <shape android:shape="rectangle">
+                    <corners android:radius="999dp" />
+                    <gradient
+                        android:type="linear"
+                        android:angle="315"
+                        android:startColor="@color/amarillo"
+                        android:centerColor="@color/amarillo_medio"
+                        android:endColor="@color/naranja" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item android:id="@android:id/mask" android:bottom="8dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <solid android:color="@android:color/white" />
+        </shape>
+    </item>
+</ripple>

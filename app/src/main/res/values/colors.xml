@@ -1,8 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="rojo">#E53935</color>
-    <color name="rojo_oscuro">#B71C1C</color>
-    <color name="ambar">#FFB300</color>
-    <color name="scrim">#99000000</color>
-    <color name="gris_tenue">#555555</color>
+    <!-- Paleta de la guía de estilo de Dashcams España -->
+    <color name="azul_marino">#1F2147</color>
+    <color name="fondo_profundo">#12132A</color>
+    <color name="azul_luz">#33378A</color>
+    <color name="amarillo">#FFD84A</color>
+    <color name="amarillo_medio">#FBB80C</color>
+    <color name="naranja">#F68B1F</color>
+    <color name="rojo_rec">#E0262C</color>
+    <color name="rojo_marca">#C8161D</color>
+    <color name="verde_ok">#22A447</color>
+
+    <!-- Derivados -->
+    <color name="pastilla_fondo">#14FFFFFF</color>
+    <color name="pastilla_borde">#2EFFFFFF</color>
+    <color name="texto_suave">#B3FFFFFF</color>
+    <color name="texto_tenue">#66FFFFFF</color>
+    <color name="marino_suave">#B31F2147</color>
+    <color name="sombra_dura">#47000000</color>
+    <color name="sombra_naranja">#66F69116</color>
+    <color name="scrim">#B312132A</color>
+
+    <!-- Nombres usados en el código -->
+    <color name="rojo">@color/rojo_marca</color>
+    <color name="ambar">@color/amarillo_medio</color>
 </resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lo que se ve mientras arranca la app: fondo de marca con el escudo en el centro -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/bg_brand" />
+    <item
+        android:width="96dp"
+        android:height="111dp"
+        android:drawable="@drawable/escudo"
+        android:gravity="center" />
+</layer-list>

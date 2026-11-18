@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import es.dashcams.app.databinding.ActivityGalleryBinding
 import es.dashcams.app.databinding.ItemClipBinding
+import es.dashcams.app.databinding.ItemGalleryHeaderBinding
 import java.io.File
 
 /** Lista de clips guardados: ver, compartir (WhatsApp, correo, SwissTransfer...) o borrar. */
@@ -34,7 +35,7 @@ class GalleryActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         storage = ClipStorage(this)
-        binding.toolbar.setNavigationOnClickListener { finish() }
+        binding.btnBack.setOnClickListener { finish() }
         binding.list.layoutManager = LinearLayoutManager(this)
         binding.list.adapter = adapter
     }
@@ -45,9 +46,7 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
-        val clips = storage.savedClips()
-        adapter.submit(clips)
-        binding.emptyText.isVisible = clips.isEmpty()
+        adapter.submit(storage.savedClips())
     }
 
     private fun uriFor(file: File): Uri =
@@ -102,15 +101,21 @@ class GalleryActivity : AppCompatActivity() {
     }
 }
 
+/**
+ * Lista de la pantalla Clips. La posición 0 es la cabecera (kicker, título con palabra en degradado,
+ * carriles); el resto, una tarjeta blanca por clip.
+ */
 class ClipAdapter(
     private val onPlay: (File) -> Unit,
     private val onShare: (File) -> Unit,
     private val onDelete: (File) -> Unit,
-) : RecyclerView.Adapter<ClipAdapter.Holder>() {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var items: List<File> = emptyList()
+    private val animated = mutableSetOf<String>()
 
-    class Holder(val binding: ItemClipBinding) : RecyclerView.ViewHolder(binding.root)
+    class HeaderHolder(val binding: ItemGalleryHeaderBinding) : RecyclerView.ViewHolder(binding.root)
+    class ClipHolder(val binding: ItemClipBinding) : RecyclerView.ViewHolder(binding.root)
 
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     fun submit(list: List<File>) {
@@ -118,18 +123,53 @@ class ClipAdapter(
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder =
-        Holder(ItemClipBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+    override fun getItemViewType(position: Int): Int = if (position == 0) TYPE_HEADER else TYPE_CLIP
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemCount(): Int = items.size + 1
 
-    override fun onBindViewHolder(holder: Holder, position: Int) {
-        val file = items[position]
-        holder.binding.title.text = ClipNames.title(file)
-        holder.binding.subtitle.text = ClipNames.subtitle(file)
-        holder.binding.btnPlay.setOnClickListener { onPlay(file) }
-        holder.binding.btnShare.setOnClickListener { onShare(file) }
-        holder.binding.btnDelete.setOnClickListener { onDelete(file) }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return if (viewType == TYPE_HEADER) {
+            HeaderHolder(ItemGalleryHeaderBinding.inflate(inflater, parent, false))
+        } else {
+            ClipHolder(ItemClipBinding.inflate(inflater, parent, false))
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        if (holder is HeaderHolder) {
+            val b = holder.binding
+            b.title.text = Brand.highlight("Clips guardados", "guardados")
+            b.emptyText.isVisible = items.isEmpty()
+            if (animated.add("header")) {
+                Brand.enter(b.kicker, delayMs = 50, fromDp = -12f, durationMs = 400)
+                Brand.enter(b.title, delayMs = 150, fromDp = 20f)
+            }
+            return
+        }
+        val b = (holder as ClipHolder).binding
+        val file = items[position - 1]
+        b.partCircle.text = ClipNames.part(file)
+        b.title.text = ClipNames.title(file)
+        b.subtitle.text = ClipNames.subtitle(file)
+        b.btnPlay.setOnClickListener { onPlay(file) }
+        b.btnShare.setOnClickListener { onShare(file) }
+        b.btnDelete.setOnClickListener { onDelete(file) }
+        // Las tarjetas entran con rebote desde la derecha, una detrás de otra (solo la primera vez)
+        if (animated.add(file.name)) {
+            Brand.pop(b.root, delayMs = 200L + 70L * minOf(position - 1, 6), fromRightDp = 60f)
+        } else {
+            b.root.animate().cancel()
+            b.root.alpha = 1f
+            b.root.scaleX = 1f
+            b.root.scaleY = 1f
+            b.root.translationX = 0f
+        }
+    }
+
+    companion object {
+        private const val TYPE_HEADER = 0
+        private const val TYPE_CLIP = 1
     }
 }
 
@@ -141,9 +181,12 @@ object ClipNames {
         val m = pattern.matchEntire(file.name) ?: return file.name
         val d = m.groupValues[1]
         val t = m.groupValues[2]
-        return "Evento ${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)} · " +
+        return "${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)} · " +
             "${t.substring(0, 2)}:${t.substring(2, 4)}:${t.substring(4, 6)}"
     }
+
+    /** "1", "2" o "3" para el círculo de la tarjeta. */
+    fun part(file: File): String = pattern.matchEntire(file.name)?.groupValues?.get(3) ?: "•"
 
     /** Todas las partes guardadas del mismo evento que [file] (parte 1, 2, 3), en orden. */
     fun eventParts(file: File, saved: List<File>): List<File> {
