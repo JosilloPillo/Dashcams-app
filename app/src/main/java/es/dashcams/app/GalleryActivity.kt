@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -18,7 +19,11 @@ import es.dashcams.app.databinding.ItemClipBinding
 import es.dashcams.app.databinding.ItemGalleryHeaderBinding
 import java.io.File
 
-/** Lista de clips guardados: ver, compartir (WhatsApp, correo, SwissTransfer...) o borrar. */
+/**
+ * Pantalla Clips, con dos pestañas:
+ *  - Eventos: lo guardado con GUARDAR, la voz o un mando (no se borra nunca solo).
+ *  - Últimos minutos: la grabación normal en bucle, que se va borrando. Desde aquí se puede guardar un tramo.
+ */
 class GalleryActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityGalleryBinding
@@ -27,7 +32,10 @@ class GalleryActivity : AppCompatActivity() {
         onPlay = { play(it) },
         onShare = { share(it) },
         onDelete = { confirmDelete(it) },
+        onKeep = { keep(it) },
+        onTab = { loop -> showLoop = loop; refresh() },
     )
+    private var showLoop = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,7 +54,8 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
-        adapter.submit(storage.savedClips())
+        val list = if (showLoop) storage.loopSegments().reversed() else storage.savedClips()
+        adapter.submit(list, showLoop)
     }
 
     private fun uriFor(file: File): Uri =
@@ -99,27 +108,42 @@ class GalleryActivity : AppCompatActivity() {
             }
             .show()
     }
+
+    /** Pasa un tramo de "Últimos minutos" a "Eventos" para que no se borre. */
+    private fun keep(file: File) {
+        val stamp = ClipNames.stampOf(file) ?: ClipStorage.stamp(file.lastModified())
+        if (storage.protect(file, stamp, 2) != null) {
+            Toast.makeText(this, "Guardado en Eventos", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "No se ha podido guardar", Toast.LENGTH_SHORT).show()
+        }
+        refresh()
+    }
 }
 
 /**
  * Lista de la pantalla Clips. La posición 0 es la cabecera (kicker, título con palabra en degradado,
- * carriles); el resto, una tarjeta blanca por clip.
+ * pestañas y carriles); el resto, una tarjeta blanca por clip.
  */
 class ClipAdapter(
     private val onPlay: (File) -> Unit,
     private val onShare: (File) -> Unit,
     private val onDelete: (File) -> Unit,
+    private val onKeep: (File) -> Unit,
+    private val onTab: (Boolean) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var items: List<File> = emptyList()
+    private var loop = false
     private val animated = mutableSetOf<String>()
 
     class HeaderHolder(val binding: ItemGalleryHeaderBinding) : RecyclerView.ViewHolder(binding.root)
     class ClipHolder(val binding: ItemClipBinding) : RecyclerView.ViewHolder(binding.root)
 
     @android.annotation.SuppressLint("NotifyDataSetChanged")
-    fun submit(list: List<File>) {
+    fun submit(list: List<File>, showingLoop: Boolean) {
         items = list
+        loop = showingLoop
         notifyDataSetChanged()
     }
 
@@ -137,27 +161,65 @@ class ClipAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        if (holder is HeaderHolder) {
-            val b = holder.binding
+        if (holder is HeaderHolder) bindHeader(holder.binding) else bindClip((holder as ClipHolder).binding, position)
+    }
+
+    private fun bindHeader(b: ItemGalleryHeaderBinding) {
+        val ctx = b.root.context
+        if (loop) {
+            b.kickerText.setText(R.string.tab_loop)
+            b.title.text = Brand.highlight("Últimos minutos", "minutos")
+            b.subtitle.setText(R.string.loop_subtitle)
+            b.emptyText.setText(R.string.loop_empty)
+        } else {
+            b.kickerText.setText(R.string.gallery_kicker)
             b.title.text = Brand.highlight("Clips guardados", "guardados")
-            b.emptyText.isVisible = items.isEmpty()
-            if (animated.add("header")) {
-                Brand.enter(b.kicker, delayMs = 50, fromDp = -12f, durationMs = 400)
-                Brand.enter(b.title, delayMs = 150, fromDp = 20f)
-            }
-            return
+            b.subtitle.setText(R.string.gallery_subtitle)
+            b.emptyText.setText(R.string.gallery_empty)
         }
-        val b = (holder as ClipHolder).binding
+        b.emptyText.isVisible = items.isEmpty()
+
+        // Pestaña elegida: pastilla blanca con texto azul marino; la otra, translúcida
+        val navy = ContextCompat.getColor(ctx, R.color.azul_marino)
+        val white = ContextCompat.getColor(ctx, android.R.color.white)
+        b.tabEvents.setBackgroundResource(if (!loop) R.drawable.bg_tab_selected else R.drawable.bg_tab)
+        b.tabEvents.setTextColor(if (!loop) navy else white)
+        b.tabLoop.setBackgroundResource(if (loop) R.drawable.bg_tab_selected else R.drawable.bg_tab)
+        b.tabLoop.setTextColor(if (loop) navy else white)
+        b.tabEvents.setOnClickListener { if (loop) onTab(false) }
+        b.tabLoop.setOnClickListener { if (!loop) onTab(true) }
+
+        if (animated.add("header")) {
+            Brand.enter(b.kicker, delayMs = 50, fromDp = -12f, durationMs = 400)
+            Brand.enter(b.title, delayMs = 150, fromDp = 20f)
+        }
+    }
+
+    private fun bindClip(b: ItemClipBinding, position: Int) {
+        val ctx = b.root.context
         val file = items[position - 1]
-        b.partCircle.text = ClipNames.part(file)
         b.title.text = ClipNames.title(file)
-        b.subtitle.text = ClipNames.subtitle(file)
         b.btnPlay.setOnClickListener { onPlay(file) }
         b.btnShare.setOnClickListener { onShare(file) }
-        b.btnDelete.setOnClickListener { onDelete(file) }
+
+        if (loop) {
+            // Tramo de la grabación normal: se puede guardar como evento
+            b.partCircle.text = "↺"
+            b.subtitle.text = ClipNames.loopSubtitle(file)
+            b.btnDelete.setText(R.string.keep)
+            b.btnDelete.setTextColor(ContextCompat.getColor(ctx, R.color.verde_ok))
+            b.btnDelete.setOnClickListener { onKeep(file) }
+        } else {
+            b.partCircle.text = ClipNames.part(file)
+            b.subtitle.text = ClipNames.subtitle(file)
+            b.btnDelete.setText(R.string.delete)
+            b.btnDelete.setTextColor(ContextCompat.getColor(ctx, R.color.rojo_marca))
+            b.btnDelete.setOnClickListener { onDelete(file) }
+        }
+
         // Las tarjetas entran con rebote desde la derecha, una detrás de otra (solo la primera vez)
         if (animated.add(file.name)) {
-            Brand.pop(b.root, delayMs = 200L + 70L * minOf(position - 1, 6), fromRightDp = 60f)
+            Brand.pop(b.root, delayMs = 150L + 60L * minOf(position - 1, 6), fromRightDp = 60f)
         } else {
             b.root.animate().cancel()
             b.root.alpha = 1f
@@ -173,17 +235,22 @@ class ClipAdapter(
     }
 }
 
-/** Convierte "evento_20261118_210412_parte2.mp4" en textos legibles. */
+/** Convierte "evento_20261118_210412_parte2.mp4" y "tramo_20261118_210412.mp4" en textos legibles. */
 object ClipNames {
     private val pattern = Regex("""evento_(\d{8})_(\d{6})_parte(\d)\.mp4""")
+    private val anyStamp = Regex("""(?:evento|tramo)_(\d{8})_(\d{6}).*\.mp4""")
 
     fun title(file: File): String {
-        val m = pattern.matchEntire(file.name) ?: return file.name
+        val m = anyStamp.matchEntire(file.name) ?: return file.name
         val d = m.groupValues[1]
         val t = m.groupValues[2]
         return "${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)} · " +
             "${t.substring(0, 2)}:${t.substring(2, 4)}:${t.substring(4, 6)}"
     }
+
+    /** "20261118_210412" a partir del nombre del fichero. */
+    fun stampOf(file: File): String? =
+        anyStamp.matchEntire(file.name)?.let { "${it.groupValues[1]}_${it.groupValues[2]}" }
 
     /** "1", "2" o "3" para el círculo de la tarjeta. */
     fun part(file: File): String = pattern.matchEntire(file.name)?.groupValues?.get(3) ?: "•"
@@ -204,5 +271,10 @@ object ClipNames {
         }
         val mb = file.length() / (1024 * 1024)
         return "$part · $mb MB"
+    }
+
+    fun loopSubtitle(file: File): String {
+        val mb = file.length() / (1024 * 1024)
+        return "Grabación normal · se borrará sola · $mb MB"
     }
 }

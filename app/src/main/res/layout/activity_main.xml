@@ -5,12 +5,12 @@
     android:layout_height="match_parent"
     android:background="@color/fondo_profundo">
 
-    <!-- Vista de cámara: fitCenter para ver exactamente el encuadre que se graba -->
+    <!-- Vista de cámara a pantalla completa (en Ajustes se puede ver el encuadre entero con bandas) -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:scaleType="fitCenter" />
+        app:scaleType="fillCenter" />
 
     <!-- Degradados azul marino arriba y abajo para que se lean los controles sobre la imagen -->
     <View
@@ -123,12 +123,12 @@
                 android:textSize="14sp" />
 
             <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btnSound"
+                android:id="@+id/btnSettings"
                 style="@style/Dashcams.Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="@string/sound_on"
+                android:text="@string/settings"
                 android:textSize="14sp" />
 
             <Space

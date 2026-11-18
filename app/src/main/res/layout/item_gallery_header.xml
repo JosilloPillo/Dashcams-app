@@ -26,6 +26,7 @@
             android:background="@drawable/rec_dot" />
 
         <TextView
+            android:id="@+id/kickerText"
             style="@style/Dashcams.KickerText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -43,14 +44,37 @@
         android:layout_marginEnd="24dp" />
 
     <TextView
+        android:id="@+id/subtitle"
         style="@style/Dashcams.Support"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginTop="6dp"
         android:layout_marginEnd="24dp"
-        android:gravity="center"
-        android:text="@string/gallery_subtitle" />
+        android:gravity="center" />
+
+    <!-- Pestañas: eventos guardados / grabación normal que se va borrando -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/tabEvents"
+            style="@style/Dashcams.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/tab_events" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/tabLoop"
+            style="@style/Dashcams.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:text="@string/tab_loop" />
+    </LinearLayout>
 
     <es.dashcams.app.LaneView
         android:id="@+id/lanes"
@@ -68,7 +92,6 @@
         android:layout_marginTop="12dp"
         android:layout_marginEnd="28dp"
         android:gravity="center"
-        android:text="@string/gallery_empty"
         android:textColor="@android:color/white"
         android:visibility="gone" />
 </LinearLayout>

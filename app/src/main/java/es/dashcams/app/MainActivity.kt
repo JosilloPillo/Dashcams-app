@@ -7,15 +7,19 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.hardware.display.DisplayManager
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
+import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -24,29 +28,54 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.lifecycle.Lifecycle
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import es.dashcams.app.databinding.ActivityMainBinding
+import es.dashcams.app.databinding.SheetSettingsBinding
 import java.util.Locale
 
-class MainActivity : AppCompatActivity(), DashcamController.Listener {
+class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceCommand.Listener {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var storage: ClipStorage
     private lateinit var dashcam: DashcamController
+    private lateinit var voice: VoiceCommand
 
     private val ui = Handler(Looper.getMainLooper())
     private val spanish = Locale.forLanguageTag("es-ES")
+    private val prefs by lazy { getSharedPreferences("ajustes", MODE_PRIVATE) }
 
     /** El usuario estaba grabando cuando la app pasó a segundo plano: al volver, seguimos. */
     private var resumeOnStart = false
     /** Paramos nosotros porque el móvil estaba demasiado caliente. */
     private var pausedForHeat = false
+    /** El usuario ha pulsado Parar: no volvemos a grabar solos (por ejemplo al cambiar de cámara). */
+    private var userStopped = false
+    private var cameraStarted = false
+
+    // Ajustes (se guardan en el móvil)
+    private var beepOn = true
+    private var fitPreview = false
+    private var voiceOn = false
 
     private var batteryTemp = -1f
     private var batteryLevel = -1
     private var charging = false
 
-    private val prefs by lazy { getSharedPreferences("ajustes", MODE_PRIVATE) }
-    private var cameraStarted = false
+    /** Hoja de Ajustes abierta (para refrescarla si cambian permisos o la descarga de la voz). */
+    private var settings: SheetSettingsBinding? = null
+
+    private val soundPool: SoundPool = SoundPool.Builder()
+        .setMaxStreams(1)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        )
+        .build()
+    private var beepId = 0
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -55,16 +84,17 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
             } else {
                 binding.statusText.setText(R.string.need_camera)
             }
-            if (dashcam.soundOn && !hasAudioPermission()) {
+            if ((dashcam.soundOn || voiceOn) && !hasAudioPermission()) {
                 Toast.makeText(
                     this,
-                    "Sin permiso de micrófono se graba sin sonido. Puedes darlo en Ajustes > Aplicaciones.",
+                    "Sin permiso de micrófono no hay sonido ni control por voz. Puedes darlo en Ajustes > Aplicaciones.",
                     Toast.LENGTH_LONG
                 ).show()
             } else if (dashcam.soundOn && dashcam.isLoopRunning) {
                 Toast.makeText(this, "El sonido se grabará desde el siguiente minuto", Toast.LENGTH_SHORT).show()
             }
-            updateSoundButton()
+            settings?.let { refreshSettings(it) }
+            syncVoice()
         }
 
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -89,6 +119,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
     private val tick = object : Runnable {
         override fun run() {
             updateStatus()
+            syncVoice()
             ui.postDelayed(this, 1_000L)
         }
     }
@@ -100,7 +131,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
             .alpha(0f)
             .translationY(-12f * resources.displayMetrics.density)
             .setDuration(250)
-            .withEndAction { binding.savedChip.visibility = android.view.View.GONE }
+            .withEndAction { binding.savedChip.visibility = View.GONE }
             .start()
     }
 
@@ -115,8 +146,15 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
         storage = ClipStorage(this)
         dashcam = DashcamController(this, binding.previewView, storage, this)
+        voice = VoiceCommand(this, this)
+
         dashcam.soundOn = prefs.getBoolean(KEY_SOUND, true) // sonido activado por defecto
-        updateSoundButton()
+        dashcam.setInitialCamera(prefs.getBoolean(KEY_INSIDE, false))
+        beepOn = prefs.getBoolean(KEY_BEEP, true)
+        fitPreview = prefs.getBoolean(KEY_FIT, false)
+        voiceOn = prefs.getBoolean(KEY_VOICE, false)
+        applyPreviewScale()
+        beepId = soundPool.load(this, R.raw.guardado, 1)
 
         // Marca y entrada de los elementos como en los vídeos: kicker bajando, botones con rebote
         binding.brandText.text = Brand.wordmark()
@@ -125,7 +163,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
         binding.btnSave.setOnClickListener { saveEvent() }
         binding.btnStartStop.setOnClickListener { toggleRecording() }
-        binding.btnSound.setOnClickListener { toggleSound() }
+        binding.btnSettings.setOnClickListener { openSettings() }
         binding.btnClips.setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java))
         }
@@ -134,7 +172,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
         val missing = buildList {
             if (!hasCameraPermission()) add(Manifest.permission.CAMERA)
-            if (dashcam.soundOn && !hasAudioPermission()) add(Manifest.permission.RECORD_AUDIO)
+            if ((dashcam.soundOn || voiceOn) && !hasAudioPermission()) add(Manifest.permission.RECORD_AUDIO)
         }
         if (hasCameraPermission()) startCameraOnce()
         if (missing.isNotEmpty()) requestPermissions.launch(missing.toTypedArray())
@@ -144,37 +182,6 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         if (cameraStarted || !hasCameraPermission()) return
         cameraStarted = true
         dashcam.startCamera()
-    }
-
-    // ---- Sonido ----
-
-    private fun toggleSound() {
-        if (!hasAudioPermission()) {
-            // Quiere sonido pero no hay permiso: lo pedimos (si lo negó para siempre, el aviso le dice dónde darlo).
-            dashcam.soundOn = true
-            prefs.edit().putBoolean(KEY_SOUND, true).apply()
-            requestPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
-            return
-        }
-        val on = !dashcam.soundOn
-        dashcam.soundOn = on
-        prefs.edit().putBoolean(KEY_SOUND, on).apply()
-        Toast.makeText(
-            this,
-            if (on) "Sonido activado" else "Sonido desactivado: los vídeos se graban sin audio",
-            Toast.LENGTH_SHORT
-        ).show()
-        updateSoundButton()
-    }
-
-    private fun updateSoundButton() {
-        binding.btnSound.setText(
-            when {
-                !hasAudioPermission() -> R.string.sound_no_permission
-                dashcam.soundOn -> R.string.sound_on
-                else -> R.string.sound_off
-            }
-        )
     }
 
     override fun onStart() {
@@ -199,11 +206,18 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         // paramos y, al volver, seguimos grabando solos.
         if (dashcam.isLoopRunning) resumeOnStart = true
         dashcam.stopLoop()
+        voice.stop()
 
         unregisterReceiver(batteryReceiver)
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
         ui.removeCallbacks(tick)
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        voice.release()
+        soundPool.release()
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -216,8 +230,8 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
     override fun onCameraReady() {
         // Como una dashcam de verdad: en cuanto la cámara está lista, empieza a grabar.
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            if (!pausedForHeat) dashcam.startLoop()
-        } else {
+            if (!pausedForHeat && !userStopped) dashcam.startLoop()
+        } else if (!userStopped) {
             resumeOnStart = true
         }
         updateStatus()
@@ -230,6 +244,26 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
     override fun onDashcamInfo(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    // ---- VoiceCommand.Listener ----
+
+    override fun onVoiceCommand() {
+        saveEvent()
+    }
+
+    override fun onVoiceState(listening: Boolean, message: String?) {
+        if (message != null) Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        settings?.let { refreshSettings(it) }
+        updateStatus()
+    }
+
+    /** La voz solo escucha mientras se graba, con permiso de micrófono y si está activada. */
+    private fun syncVoice() {
+        if (!::voice.isInitialized) return
+        val shouldListen = voiceOn && voice.isModelReady && hasAudioPermission() &&
+            dashcam.isLoopRunning && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        if (shouldListen) voice.start() else if (voice.isListening) voice.stop()
     }
 
     // ---- Botón GUARDAR, teclas de volumen y mandos Bluetooth ----
@@ -251,6 +285,8 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
     private fun saveEvent() {
         if (dashcam.saveEvent()) {
+            if (beepOn && beepId != 0) soundPool.play(beepId, 1f, 1f, 1, 0, 1f)
+
             binding.btnSave.setText(R.string.saved)
             Brand.bump(binding.btnSave)
             ui.removeCallbacks(resetSaveButton)
@@ -260,7 +296,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
             ui.removeCallbacks(hideSavedChip)
             binding.savedChip.animate().cancel()
             binding.savedChip.translationY = 0f
-            binding.savedChip.visibility = android.view.View.VISIBLE
+            binding.savedChip.visibility = View.VISIBLE
             Brand.pop(binding.savedChip, fromRightDp = 40f)
             ui.postDelayed(hideSavedChip, 2_200L)
         } else {
@@ -272,14 +308,159 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
     private fun toggleRecording() {
         if (dashcam.isLoopRunning) {
             pausedForHeat = false
+            userStopped = true
             dashcam.stopLoop()
         } else if (batteryTemp >= HEAT_STOP_C) {
             Toast.makeText(this, "El móvil está demasiado caliente para grabar", Toast.LENGTH_LONG).show()
         } else {
             pausedForHeat = false
+            userStopped = false
             dashcam.startLoop()
         }
+        syncVoice()
         updateStatus()
+    }
+
+    // ---- Ajustes ----
+
+    private fun openSettings() {
+        val sheet = BottomSheetDialog(this)
+        val s = SheetSettingsBinding.inflate(layoutInflater)
+        sheet.setContentView(s.root)
+        settings = s
+        sheet.setOnDismissListener { settings = null }
+
+        s.title.text = Brand.highlight("Ajustes", "Ajustes")
+        refreshSettings(s)
+
+        s.switchSound.setOnCheckedChangeListener { _, on ->
+            if (on == (dashcam.soundOn && hasAudioPermission())) return@setOnCheckedChangeListener
+            dashcam.soundOn = on
+            prefs.edit().putBoolean(KEY_SOUND, on).apply()
+            if (on && !hasAudioPermission()) {
+                requestPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+            }
+            refreshSettings(s)
+        }
+        s.switchBeep.setOnCheckedChangeListener { _, on ->
+            beepOn = on
+            prefs.edit().putBoolean(KEY_BEEP, on).apply()
+            if (on && beepId != 0) soundPool.play(beepId, 1f, 1f, 1, 0, 1f) // para que se oiga cómo suena
+        }
+        s.switchFit.setOnCheckedChangeListener { _, on ->
+            fitPreview = on
+            prefs.edit().putBoolean(KEY_FIT, on).apply()
+            applyPreviewScale()
+        }
+        s.cameraGroup.setOnCheckedChangeListener { _, checkedId ->
+            val inside = checkedId == R.id.radioInside
+            if (inside == dashcam.useFrontCamera) return@setOnCheckedChangeListener
+            if (inside && !prefs.getBoolean(KEY_INSIDE_WARNED, false)) {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.inside_title)
+                    .setMessage(R.string.inside_text)
+                    .setNegativeButton(R.string.cancel) { _, _ -> s.radioRoad.isChecked = true }
+                    .setPositiveButton(R.string.inside_ok) { _, _ ->
+                        prefs.edit().putBoolean(KEY_INSIDE_WARNED, true).apply()
+                        switchCamera(true)
+                    }
+                    .setOnCancelListener { s.radioRoad.isChecked = true }
+                    .show()
+            } else {
+                switchCamera(inside)
+            }
+        }
+        s.switchVoice.setOnCheckedChangeListener { _, on ->
+            if (on == voiceOn) return@setOnCheckedChangeListener
+            setVoice(on)
+        }
+
+        sheet.behavior.state = BottomSheetBehavior.STATE_EXPANDED
+        sheet.behavior.skipCollapsed = true
+        sheet.show()
+    }
+
+    /** Pone los interruptores y textos de la hoja según el estado actual. */
+    private fun refreshSettings(s: SheetSettingsBinding) {
+        val micOk = hasAudioPermission()
+        s.switchSound.isChecked = dashcam.soundOn && micOk
+        s.soundNote.text = when {
+            !micOk -> "Falta el permiso de micrófono. Activa el interruptor para pedirlo."
+            dashcam.soundOn -> "Se graba el sonido del interior del coche."
+            else -> "Los vídeos se graban sin sonido."
+        }
+        s.switchBeep.isChecked = beepOn
+        s.switchFit.isChecked = fitPreview
+        if (dashcam.useFrontCamera) s.radioInside.isChecked = true else s.radioRoad.isChecked = true
+        s.bothNote.text = if (dashcam.supportsBothCameras) {
+            "Tu móvil puede usar las dos cámaras a la vez. Grabar carretera e interior juntas llegará en una próxima versión."
+        } else {
+            "Tu móvil no permite usar las dos cámaras a la vez: se graba una u otra."
+        }
+
+        s.switchVoice.isChecked = voiceOn
+        s.voiceProgress.isVisible = voice.isDownloading
+        s.voiceNote.text = when {
+            voice.isDownloading -> "Descargando el reconocedor de voz…"
+            !voiceOn -> "Funciona sin internet. Al activarlo se descarga una vez el reconocedor de español (39 MB). Lo que dices no sale del móvil."
+            !micOk -> "Falta el permiso de micrófono."
+            voice.failed -> "El reconocedor no ha podido arrancar en este móvil. Prueba a apagar «Grabar sonido»: algunos móviles no dejan usar el micrófono para las dos cosas a la vez."
+            !voice.isModelReady -> "Falta descargar el reconocedor de voz."
+            voice.isListening -> "Escuchando. Di «Cámara, guarda» y se guarda el clip."
+            else -> "Se activa solo mientras se graba."
+        }
+    }
+
+    private fun setVoice(on: Boolean) {
+        voiceOn = on
+        prefs.edit().putBoolean(KEY_VOICE, on).apply()
+        if (!on) {
+            voice.stop()
+            settings?.let { refreshSettings(it) }
+            updateStatus()
+            return
+        }
+        voice.resetFailure()
+        if (!hasAudioPermission()) requestPermissions.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+        if (!voice.isModelReady) {
+            voice.downloadModel(
+                onProgress = { p ->
+                    settings?.let {
+                        it.voiceProgress.isVisible = true
+                        it.voiceProgress.setProgressCompat(p, true)
+                        it.voiceNote.text = "Descargando el reconocedor de voz (39 MB): $p %"
+                    }
+                },
+                onDone = { ok, error ->
+                    if (!ok) {
+                        voiceOn = false
+                        prefs.edit().putBoolean(KEY_VOICE, false).apply()
+                        Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+                    }
+                    settings?.let { refreshSettings(it) }
+                    syncVoice()
+                }
+            )
+        }
+        settings?.let { refreshSettings(it) }
+        syncVoice()
+    }
+
+    private fun switchCamera(inside: Boolean) {
+        prefs.edit().putBoolean(KEY_INSIDE, inside).apply()
+        voice.stop()
+        dashcam.switchCamera(inside)
+        Toast.makeText(
+            this,
+            if (inside) "Grabando el interior del coche" else "Grabando la carretera",
+            Toast.LENGTH_SHORT
+        ).show()
+        updateStatus()
+    }
+
+    private fun applyPreviewScale() {
+        binding.previewView.scaleType =
+            if (fitPreview) PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
     }
 
     // ---- Temperatura ----
@@ -295,7 +476,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
             ).show()
         } else if (pausedForHeat && batteryTemp in 0f..HEAT_RESUME_C) {
             pausedForHeat = false
-            if (dashcam.isCameraReady) dashcam.startLoop()
+            if (dashcam.isCameraReady && !userStopped) dashcam.startLoop()
             Toast.makeText(this, "Temperatura correcta, sigo grabando", Toast.LENGTH_SHORT).show()
         }
         updateStatus()
@@ -307,8 +488,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
         if (!::dashcam.isInitialized) return
         val recording = dashcam.isLoopRunning
         val blinkOn = (System.currentTimeMillis() / 500L) % 2L == 0L
-        binding.recDot.visibility =
-            if (recording && blinkOn) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        binding.recDot.visibility = if (recording && blinkOn) View.VISIBLE else View.INVISIBLE
 
         val savedCount = storage.savedClips().size
         val freeGb = storage.freeBytes() / (1024f * 1024f * 1024f)
@@ -323,7 +503,12 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
                     savedCount == 1 -> "1 clip"
                     else -> "$savedCount clips"
                 }
-                String.format(spanish, "REC %02d:%02d · %s", s / 60, s % 60, extra)
+                val flags = buildString {
+                    if (dashcam.useFrontCamera) append(" · interior")
+                    if (!dashcam.soundOn || !hasAudioPermission()) append(" · sin sonido")
+                    if (::voice.isInitialized && voice.isListening) append(" · voz")
+                }
+                String.format(spanish, "REC %02d:%02d · %s%s", s / 60, s % 60, extra, flags)
             }
             !dashcam.isCameraReady && !hasCameraPermission() -> "Falta permiso de cámara"
             !dashcam.isCameraReady -> getString(R.string.status_starting)
@@ -394,6 +579,12 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener {
 
     companion object {
         private const val KEY_SOUND = "sonido"
+        private const val KEY_BEEP = "pitido"
+        private const val KEY_FIT = "encuadre_completo"
+        private const val KEY_INSIDE = "camara_interior"
+        private const val KEY_INSIDE_WARNED = "aviso_interior_visto"
+        private const val KEY_VOICE = "voz"
+
         /** Por debajo de esto el kicker avisa de que queda poco espacio. */
         private const val LOW_SPACE_GB = 2f
 

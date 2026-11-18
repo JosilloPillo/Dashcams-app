@@ -14,6 +14,8 @@ import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.FileOutputOptions
@@ -75,6 +77,21 @@ class DashcamController(
             recording?.mute(!value)
         }
 
+    /** true = cámara frontal del móvil (graba el interior del coche). */
+    var useFrontCamera: Boolean = false
+        private set
+
+    /** Si el móvil permite usar dos cámaras a la vez (para grabar carretera e interior juntas en el futuro). */
+    var supportsBothCameras: Boolean = false
+        private set
+
+    private var currentCamera: Camera? = null
+
+    /** Para elegir la cámara antes de abrirla por primera vez (lo guardado en Ajustes). */
+    fun setInitialCamera(front: Boolean) {
+        if (videoCapture == null) useFrontCamera = front
+    }
+
     val isCameraReady: Boolean get() = videoCapture != null
     val isLoopRunning: Boolean get() = loopWanted
     val segmentElapsedMs: Long
@@ -85,6 +102,11 @@ class DashcamController(
         future.addListener({
             try {
                 val provider = future.get()
+                supportsBothCameras = try {
+                    provider.availableConcurrentCameraInfos.isNotEmpty()
+                } catch (e: Exception) {
+                    false
+                }
 
                 val recorder = Recorder.Builder()
                     .setQualitySelector(
@@ -96,23 +118,32 @@ class DashcamController(
                     .build()
                 val vc = VideoCapture.withOutput(recorder)
 
-                val pv = Preview.Builder().build()
+                // La vista previa en 16:9, igual que el vídeo (por defecto Android la da en 4:3)
+                val pv = Preview.Builder()
+                    .setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+                            .build()
+                    )
+                    .build()
                 pv.setSurfaceProvider(previewView.surfaceProvider)
 
                 val rotation = previewView.display?.rotation ?: Surface.ROTATION_90
                 vc.setTargetRotation(rotation)
                 pv.setTargetRotation(rotation)
 
-                // Primero intentamos la cámara trasera más angular; si da problemas, la normal.
-                val widest = widestBackCamera(provider)
-                val candidates = listOfNotNull(widest?.first, CameraSelector.DEFAULT_BACK_CAMERA)
+                // Primero intentamos la cámara más angular del lado elegido; si da problemas, la normal.
+                val facing = if (useFrontCamera) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
+                val fallback = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                val widest = widestCamera(provider, facing)
+                val candidates = listOfNotNull(widest?.first, fallback)
                 var camera: Camera? = null
                 var lastError: Exception? = null
                 for (selector in candidates) {
                     try {
                         provider.unbindAll()
                         camera = provider.bindToLifecycle(activity, selector, pv, vc)
-                        if (selector !== CameraSelector.DEFAULT_BACK_CAMERA && widest?.second == true) {
+                        if (selector !== fallback && widest?.second == true) {
                             listener.onDashcamInfo("Usando la cámara gran angular")
                         }
                         break
@@ -120,7 +151,8 @@ class DashcamController(
                         lastError = e
                     }
                 }
-                val bound = camera ?: throw (lastError ?: IllegalStateException("sin cámara trasera"))
+                val bound = camera ?: throw (lastError ?: IllegalStateException("sin cámara"))
+                currentCamera = bound
 
                 applyWidestZoom(bound)
 
@@ -134,12 +166,26 @@ class DashcamController(
     }
 
     /**
-     * Busca la cámara trasera con más campo de visión (sensor más ancho respecto a la focal).
-     * Devuelve su selector y si es distinta de la cámara trasera principal.
+     * Cambia entre la cámara delantera de la carretera (trasera del móvil) y la del interior
+     * (frontal del móvil). Corta el tramo actual y vuelve a abrir la cámara.
+     */
+    fun switchCamera(front: Boolean) {
+        if (front == useFrontCamera) return
+        useFrontCamera = front
+        stopLoop()
+        videoCapture = null
+        preview = null
+        currentCamera = null
+        startCamera()
+    }
+
+    /**
+     * Busca la cámara de un lado ([lensFacing]) con más campo de visión (sensor más ancho respecto a la focal).
+     * Devuelve su selector y si es distinta de la cámara principal de ese lado.
      * Ojo: algunos móviles no dejan usar su gran angular a apps que no sean la de cámara de serie.
      */
     @OptIn(ExperimentalCamera2Interop::class)
-    private fun widestBackCamera(provider: ProcessCameraProvider): Pair<CameraSelector, Boolean>? {
+    private fun widestCamera(provider: ProcessCameraProvider, lensFacing: Int): Pair<CameraSelector, Boolean>? {
         var bestId: String? = null
         var bestRatio = 0f
         var firstBackId: String? = null
@@ -147,7 +193,7 @@ class DashcamController(
             try {
                 val c2 = Camera2CameraInfo.from(info)
                 val facing = c2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)
-                if (facing != CameraCharacteristics.LENS_FACING_BACK) continue
+                if (facing != lensFacing) continue
                 if (firstBackId == null) firstBackId = c2.cameraId
                 val sensor = c2.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: continue
                 val focal = c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
@@ -181,6 +227,7 @@ class DashcamController(
     private fun applyWidestZoom(camera: Camera) {
         var applied = false
         camera.cameraInfo.zoomState.observe(activity) { state ->
+            if (camera !== currentCamera) return@observe // es de una cámara que ya no usamos
             if (!applied && state != null && state.minZoomRatio < 0.99f) {
                 applied = true
                 camera.cameraControl.setZoomRatio(state.minZoomRatio)

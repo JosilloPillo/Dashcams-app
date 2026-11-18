@@ -49,6 +49,30 @@
         <item name="android:textSize">22sp</item>
     </style>
 
+    <!-- ===== Ajustes ===== -->
+
+    <style name="Dashcams.SettingsSection" parent="">
+        <item name="android:textColor">@color/amarillo_medio</item>
+        <item name="android:fontFamily">@font/barlow_condensed_bold</item>
+        <item name="android:textSize">22sp</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">2dp</item>
+    </style>
+
+    <style name="Dashcams.SettingsSwitch" parent="">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:fontFamily">@font/public_sans_semibold</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:minHeight">52dp</item>
+    </style>
+
+    <style name="Dashcams.SettingsNote" parent="">
+        <item name="android:textColor">@color/texto_suave</item>
+        <item name="android:fontFamily">@font/public_sans_regular</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+    </style>
+
     <!-- ===== Botones ===== -->
 
     <!-- Pastilla translúcida (como el kicker) -->
