@@ -24,22 +24,34 @@ jobs:
       - name: Compilar la app
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Leer la versión de la app
+        id: version
+        run: |
+          V=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          N=${V%.0}
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "nombre=$N" >> "$GITHUB_OUTPUT"
+          echo "Versión: Alpha $N"
+
       - name: Renombrar el APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk DashcamsEspana-prueba-${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk "DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk"
 
       - name: Guardar el APK en la ejecución
         uses: actions/upload-artifact@v4
         with:
-          name: DashcamsEspana-prueba-${{ github.run_number }}
-          path: DashcamsEspana-prueba-${{ github.run_number }}.apk
+          name: DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}
+          path: DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk
 
-      - name: Publicar versión de prueba (descarga directa del APK)
+      # Una publicación por versión ("Alpha 0.5"). Si se vuelve a compilar la misma versión,
+      # se sustituye el APK de esa misma publicación.
+      - name: Publicar la versión (descarga directa del APK)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: prueba-${{ github.run_number }}
-          name: Versión de prueba ${{ github.run_number }}
+          tag_name: alpha-${{ steps.version.outputs.version }}
+          name: Alpha ${{ steps.version.outputs.nombre }}
           prerelease: true
           body: |
-            APK de prueba generado automáticamente desde el commit ${{ github.sha }}.
-            Descárgalo desde el móvil e instálalo encima de la versión anterior.
-          files: DashcamsEspana-prueba-${{ github.run_number }}.apk
+            Dashcams España · Alpha ${{ steps.version.outputs.nombre }}
+            Compilada automáticamente desde el commit ${{ github.sha }}.
+            Descárgala desde el móvil e instálala encima de la versión anterior (no se pierden los clips).
+          files: DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk

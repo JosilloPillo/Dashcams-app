@@ -35,7 +35,7 @@ Mínimo Android 8.
 
 Cada vez que se sube código a `main`, GitHub compila la app solo:
 
-1. En el repositorio, entra en **Releases** (a la derecha) y abre la **Versión de prueba** más reciente.
+1. En el repositorio, entra en **Releases** (a la derecha) y abre la **Alpha** más reciente.
 2. Descarga el fichero `.apk` desde el móvil (tienes que tener la sesión de GitHub abierta en el navegador,
    porque el repositorio es privado).
 3. Ábrelo e instálalo. Android te pedirá permitir "instalar apps de fuentes desconocidas" para el navegador.
