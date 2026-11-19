@@ -43,12 +43,249 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape">
+            android:screenOrientation="sensorLandscape" />
+
+        <!-- Iconos de la app: uno por bandera, solo uno activo (se elige en Ajustes, ver AppIcons.kt) -->
+        <activity-alias
+            android:name=".Icono_espana"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_andalucia"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_andalucia"
+            android:roundIcon="@mipmap/ic_launcher_andalucia"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_aragon"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_aragon"
+            android:roundIcon="@mipmap/ic_launcher_aragon"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_asturias"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_asturias"
+            android:roundIcon="@mipmap/ic_launcher_asturias"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_baleares"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_baleares"
+            android:roundIcon="@mipmap/ic_launcher_baleares"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_canarias"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_canarias"
+            android:roundIcon="@mipmap/ic_launcher_canarias"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_cantabria"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_cantabria"
+            android:roundIcon="@mipmap/ic_launcher_cantabria"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_castilla_leon"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_castilla_leon"
+            android:roundIcon="@mipmap/ic_launcher_castilla_leon"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_castilla_mancha"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_castilla_mancha"
+            android:roundIcon="@mipmap/ic_launcher_castilla_mancha"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_catalunya"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_catalunya"
+            android:roundIcon="@mipmap/ic_launcher_catalunya"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_valencia"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_valencia"
+            android:roundIcon="@mipmap/ic_launcher_valencia"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_extremadura"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_extremadura"
+            android:roundIcon="@mipmap/ic_launcher_extremadura"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_galicia"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_galicia"
+            android:roundIcon="@mipmap/ic_launcher_galicia"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_madrid"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_madrid"
+            android:roundIcon="@mipmap/ic_launcher_madrid"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_murcia"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_murcia"
+            android:roundIcon="@mipmap/ic_launcher_murcia"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_navarra"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_navarra"
+            android:roundIcon="@mipmap/ic_launcher_navarra"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_pais_vasco"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_pais_vasco"
+            android:roundIcon="@mipmap/ic_launcher_pais_vasco"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_rioja"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_rioja"
+            android:roundIcon="@mipmap/ic_launcher_rioja"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_ceuta"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_ceuta"
+            android:roundIcon="@mipmap/ic_launcher_ceuta"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".Icono_melilla"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_melilla"
+            android:roundIcon="@mipmap/ic_launcher_melilla"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".GalleryActivity"

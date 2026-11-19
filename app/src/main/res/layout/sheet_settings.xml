@@ -244,5 +244,32 @@
             style="@style/Dashcams.SettingsNote"
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
+
+        <!-- ===== Icono de la app ===== -->
+        <TextView
+            style="@style/Dashcams.SettingsSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_icon" />
+
+        <TextView
+            android:id="@+id/iconNote"
+            style="@style/Dashcams.SettingsNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_icon_note" />
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/iconRow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

@@ -16,14 +16,20 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.graphics.Color
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -434,6 +440,7 @@ class MainActivity : AppCompatActivity(),
 
         s.title.text = Brand.highlight("Ajustes", "Ajustes")
         refreshSettings(s)
+        buildIconRow(s)
 
         s.switchSound.setOnCheckedChangeListener { _, on ->
             if (on == (dashcam.soundOn && hasAudioPermission())) return@setOnCheckedChangeListener
@@ -683,6 +690,68 @@ class MainActivity : AppCompatActivity(),
         if (saved != null) return DashcamController.CameraMode.fromName(saved)
         return if (prefs.getBoolean(KEY_INSIDE, false)) DashcamController.CameraMode.INSIDE
         else DashcamController.CameraMode.ROAD
+    }
+
+    /** Fila de banderas en Ajustes para elegir el icono de la app. */
+    private fun buildIconRow(s: SheetSettingsBinding) {
+        val row = s.iconRow
+        row.removeAllViews()
+        val dp = resources.displayMetrics.density
+        val selected = AppIcons.current(this)
+        for (icon in AppIcons.all) {
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding((8 * dp).toInt(), (8 * dp).toInt(), (8 * dp).toInt(), (6 * dp).toInt())
+                minimumWidth = (84 * dp).toInt()
+                setBackgroundResource(
+                    if (icon.id == selected.id) R.drawable.bg_icon_option_selected else R.drawable.bg_icon_option
+                )
+                contentDescription = icon.name
+                isClickable = true
+                isFocusable = true
+            }
+            item.addView(ImageView(this).apply {
+                setImageResource(icon.shield)
+                adjustViewBounds = true
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams((44 * dp).toInt(), (52 * dp).toInt()))
+            item.addView(TextView(this).apply {
+                text = icon.name
+                setTextColor(Color.WHITE)
+                textSize = 12f
+                typeface = ResourcesCompat.getFont(this@MainActivity, R.font.public_sans_regular)
+                gravity = Gravity.CENTER
+                maxLines = 2
+                setPadding(0, (4 * dp).toInt(), 0, 0)
+            }, LinearLayout.LayoutParams((76 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT))
+            item.setOnClickListener { askIconChange(s, icon) }
+            row.addView(item, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = (8 * dp).toInt() })
+        }
+    }
+
+    private fun askIconChange(s: SheetSettingsBinding, icon: AppIcons.Icon) {
+        if (icon.id == AppIcons.current(this).id) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.icon_change_title)
+            .setMessage(
+                "El icono pasará a ser el de ${icon.name}. Puede tardar unos segundos en cambiar y, " +
+                    "en algunos móviles, la app se cierra un momento o hay que volver a poner el icono " +
+                    "en la pantalla de inicio."
+            )
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.icon_change_ok) { _, _ ->
+                try {
+                    AppIcons.apply(this, icon)
+                    buildIconRow(s)
+                    Toast.makeText(this, "Icono cambiado: ${icon.name}", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "No se pudo cambiar el icono", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .show()
     }
 
     private fun checkCameraRadio(s: SheetSettingsBinding) {

@@ -31,6 +31,10 @@
     <string name="settings_camera_road">Carretera (cámara trasera del móvil)</string>
     <string name="settings_camera_inside">Interior del coche (cámara frontal)</string>
     <string name="settings_camera_both">Las dos a la vez (carretera + interior en pequeño)</string>
+    <string name="settings_icon">Icono de la app</string>
+    <string name="settings_icon_note">Elige la bandera de tu comunidad para el icono del móvil.</string>
+    <string name="icon_change_title">¿Cambiar el icono?</string>
+    <string name="icon_change_ok">Cambiar</string>
     <string name="settings_voice">Control por voz</string>
     <string name="settings_voice_switch">Guardar el clip con la voz</string>
     <string name="settings_voice_phrase">Frase para guardar. Dila sola, con una pausa antes y después: si va dentro de una conversación no cuenta.</string>

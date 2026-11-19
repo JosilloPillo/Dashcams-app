@@ -1,5 +1,9 @@
 # Pendiente para próximas versiones
 
+## Hecho en la 0.7 (19/11/2026)
+
+- Icono de la app a elegir: España + 17 comunidades + Ceuta y Melilla (originales en marca/comunidades/).
+
 ## Hecho en la 0.6 (19/11/2026)
 
 - Carretera e interior a la vez en un solo vídeo (interior en ventanita), en móviles que lo permiten.
