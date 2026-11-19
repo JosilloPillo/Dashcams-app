@@ -9,10 +9,13 @@ import android.content.pm.PackageManager
 import android.hardware.display.DisplayManager
 import android.media.AudioAttributes
 import android.media.SoundPool
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -35,29 +38,36 @@ import es.dashcams.app.databinding.ActivityMainBinding
 import es.dashcams.app.databinding.SheetSettingsBinding
 import java.util.Locale
 
-class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceCommand.Listener {
+class MainActivity : AppCompatActivity(),
+    DashcamController.Listener, VoiceCommand.Listener, RecordingService.Controls {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var storage: ClipStorage
     private lateinit var dashcam: DashcamController
     private lateinit var voice: VoiceCommand
+    private lateinit var location: LocationTracker
+
+    /** La cámara va ligada a esto y no a la pantalla, para poder seguir grabando en segundo plano. */
+    private val cameraLifecycle = CameraLifecycle()
 
     private val ui = Handler(Looper.getMainLooper())
     private val spanish = Locale.forLanguageTag("es-ES")
     private val prefs by lazy { getSharedPreferences("ajustes", MODE_PRIVATE) }
 
-    /** El usuario estaba grabando cuando la app pasó a segundo plano: al volver, seguimos. */
+    /** El usuario estaba grabando cuando la app pasó a segundo plano (con el segundo plano apagado). */
     private var resumeOnStart = false
     /** Paramos nosotros porque el móvil estaba demasiado caliente. */
     private var pausedForHeat = false
     /** El usuario ha pulsado Parar: no volvemos a grabar solos (por ejemplo al cambiar de cámara). */
     private var userStopped = false
     private var cameraStarted = false
+    private var serviceRunning = false
 
     // Ajustes (se guardan en el móvil)
     private var beepOn = true
     private var fitPreview = false
     private var voiceOn = false
+    private var keepInBackground = true
 
     private var batteryTemp = -1f
     private var batteryLevel = -1
@@ -93,8 +103,16 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             } else if (dashcam.soundOn && dashcam.isLoopRunning) {
                 Toast.makeText(this, "El sonido se grabará desde el siguiente minuto", Toast.LENGTH_SHORT).show()
             }
+            if (wantsLocation() && !location.hasPermission()) {
+                Toast.makeText(
+                    this,
+                    "Sin permiso de ubicación el vídeo no lleva velocidad ni coordenadas.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             settings?.let { refreshSettings(it) }
             syncVoice()
+            syncLocation()
         }
 
     private val batteryReceiver = object : BroadcastReceiver() {
@@ -116,10 +134,13 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         }
     }
 
+    /** Cada segundo: pantalla, voz, GPS y servicio de segundo plano al día. Sigue en segundo plano. */
     private val tick = object : Runnable {
         override fun run() {
             updateStatus()
             syncVoice()
+            syncLocation()
+            syncBackgroundService()
             ui.postDelayed(this, 1_000L)
         }
     }
@@ -145,8 +166,9 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         keepControlsAwayFromNotch()
 
         storage = ClipStorage(this)
-        dashcam = DashcamController(this, binding.previewView, storage, this)
+        dashcam = DashcamController(this, cameraLifecycle, storage, this)
         voice = VoiceCommand(this, this)
+        location = LocationTracker(this)
 
         dashcam.soundOn = prefs.getBoolean(KEY_SOUND, true) // sonido activado por defecto
         dashcam.setInitialCamera(prefs.getBoolean(KEY_INSIDE, false))
@@ -154,6 +176,10 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         fitPreview = prefs.getBoolean(KEY_FIT, false)
         voiceOn = prefs.getBoolean(KEY_VOICE, false)
         voice.phrase = VoiceCommand.Phrase.fromName(prefs.getString(KEY_PHRASE, null))
+        keepInBackground = prefs.getBoolean(KEY_BACKGROUND, true)
+        Telemetry.showSpeed = prefs.getBoolean(KEY_OVERLAY_SPEED, true)
+        Telemetry.showCoords = prefs.getBoolean(KEY_OVERLAY_COORDS, true)
+        Telemetry.showBrand = prefs.getBoolean(KEY_OVERLAY_BRAND, true)
         applyPreviewScale()
         beepId = soundPool.load(this, R.raw.guardado, 1)
 
@@ -171,9 +197,23 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         binding.btnDark.setOnClickListener { setDarkMode(true) }
         binding.darkOverlay.setOnClickListener { setDarkMode(false) }
 
+        // Temperatura y reloj interno: funcionan también con la app en segundo plano
+        ContextCompat.registerReceiver(
+            this,
+            batteryReceiver,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        ui.post(tick)
+        RecordingService.controls = this
+
         val missing = buildList {
             if (!hasCameraPermission()) add(Manifest.permission.CAMERA)
             if ((dashcam.soundOn || voiceOn) && !hasAudioPermission()) add(Manifest.permission.RECORD_AUDIO)
+            if (wantsLocation() && !location.hasPermission()) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
         }
         if (hasCameraPermission()) startCameraOnce()
         if (missing.isNotEmpty()) requestPermissions.launch(missing.toTypedArray())
@@ -182,41 +222,54 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
     private fun startCameraOnce() {
         if (cameraStarted || !hasCameraPermission()) return
         cameraStarted = true
+        cameraLifecycle.resume()
         dashcam.startCamera()
     }
 
     override fun onStart() {
         super.onStart()
-        ContextCompat.registerReceiver(
-            this,
-            batteryReceiver,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        if (cameraStarted) cameraLifecycle.resume()
+        dashcam.attachPreview(binding.previewView)
         getSystemService(DisplayManager::class.java)?.registerDisplayListener(displayListener, ui)
-        ui.post(tick)
 
         if (resumeOnStart && dashcam.isCameraReady && !pausedForHeat) {
             resumeOnStart = false
             dashcam.startLoop()
         }
+        syncBackgroundService()
     }
 
     override fun onStop() {
-        // Android no deja usar la cámara con la app en segundo plano desde aquí:
-        // paramos y, al volver, seguimos grabando solos.
-        if (dashcam.isLoopRunning) resumeOnStart = true
-        dashcam.stopLoop()
-        voice.stop()
-
-        unregisterReceiver(batteryReceiver)
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
-        ui.removeCallbacks(tick)
+        dashcam.detachPreview()
+
+        if (keepInBackground && sessionActive() && serviceRunning) {
+            // Sigue grabando con la app en segundo plano (hay notificación fija).
+        } else {
+            // Sin segundo plano: paramos y, al volver, seguimos grabando solos.
+            if (dashcam.isLoopRunning) resumeOnStart = true
+            dashcam.stopLoop()
+            voice.stop()
+            location.stop()
+            cameraLifecycle.pause()
+            stopBackgroundService()
+        }
         super.onStop()
     }
 
     override fun onDestroy() {
+        // Salir de la app (botón Atrás o cerrarla): se para todo.
+        ui.removeCallbacksAndMessages(null)
+        try {
+            unregisterReceiver(batteryReceiver)
+        } catch (e: Exception) {
+        }
+        if (RecordingService.controls === this) RecordingService.controls = null
+        dashcam.release()
         voice.release()
+        location.stop()
+        cameraLifecycle.destroy()
+        stopBackgroundService()
         soundPool.release()
         super.onDestroy()
     }
@@ -226,15 +279,51 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         if (hasFocus) hideSystemBars()
     }
 
+    /** Hay una sesión de grabación en marcha (grabando o en pausa por calor). */
+    private fun sessionActive(): Boolean = dashcam.isLoopRunning || pausedForHeat
+
+    // ---- Servicio de segundo plano ----
+
+    private fun syncBackgroundService() {
+        val wanted = keepInBackground && cameraLifecycle.isActive && sessionActive()
+        if (wanted && !serviceRunning) {
+            // Android solo deja arrancarlo con la app a la vista
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                try {
+                    RecordingService.start(this)
+                    serviceRunning = true
+                } catch (e: Exception) {
+                    serviceRunning = false
+                }
+            }
+        } else if (!wanted && serviceRunning) {
+            stopBackgroundService()
+        }
+    }
+
+    private fun stopBackgroundService() {
+        if (!serviceRunning) return
+        RecordingService.stop(this)
+        serviceRunning = false
+    }
+
+    /** Botón "Guardar clip" de la notificación. */
+    override fun onSaveRequested() {
+        saveEvent()
+    }
+
     // ---- DashcamController.Listener ----
 
     override fun onCameraReady() {
         // Como una dashcam de verdad: en cuanto la cámara está lista, empieza a grabar.
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || serviceRunning) {
             if (!pausedForHeat && !userStopped) dashcam.startLoop()
         } else if (!userStopped) {
             resumeOnStart = true
         }
+        // El servicio de segundo plano se arranca ya, con la app a la vista (luego Android no deja)
+        syncBackgroundService()
+        settings?.let { refreshSettings(it) }
         updateStatus()
     }
 
@@ -263,8 +352,19 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
     private fun syncVoice() {
         if (!::voice.isInitialized) return
         val shouldListen = voiceOn && voice.isModelReady && hasAudioPermission() &&
-            dashcam.isLoopRunning && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            dashcam.isLoopRunning && cameraLifecycle.isActive
         if (shouldListen) voice.start() else if (voice.isListening) voice.stop()
+    }
+
+    // ---- GPS ----
+
+    private fun wantsLocation(): Boolean = Telemetry.showSpeed || Telemetry.showCoords
+
+    /** El GPS solo funciona si hace falta para el vídeo y la cámara está abierta. */
+    private fun syncLocation() {
+        if (!::location.isInitialized) return
+        val wanted = wantsLocation() && location.hasPermission() && cameraLifecycle.isActive && cameraStarted
+        if (wanted) location.start() else location.stop()
     }
 
     // ---- Botón GUARDAR, teclas de volumen y mandos Bluetooth ----
@@ -319,6 +419,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             dashcam.startLoop()
         }
         syncVoice()
+        syncBackgroundService()
         updateStatus()
     }
 
@@ -353,6 +454,34 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             prefs.edit().putBoolean(KEY_FIT, on).apply()
             applyPreviewScale()
         }
+
+        // Datos en el vídeo (la fecha y la hora no se pueden quitar)
+        s.switchSpeed.setOnCheckedChangeListener { _, on ->
+            Telemetry.showSpeed = on
+            prefs.edit().putBoolean(KEY_OVERLAY_SPEED, on).apply()
+            askLocationIfNeeded()
+            refreshSettings(s)
+        }
+        s.switchCoords.setOnCheckedChangeListener { _, on ->
+            Telemetry.showCoords = on
+            prefs.edit().putBoolean(KEY_OVERLAY_COORDS, on).apply()
+            askLocationIfNeeded()
+            refreshSettings(s)
+        }
+        s.switchBrand.setOnCheckedChangeListener { _, on ->
+            Telemetry.showBrand = on
+            prefs.edit().putBoolean(KEY_OVERLAY_BRAND, on).apply()
+        }
+
+        // Segundo plano
+        s.switchBackground.setOnCheckedChangeListener { _, on ->
+            keepInBackground = on
+            prefs.edit().putBoolean(KEY_BACKGROUND, on).apply()
+            syncBackgroundService()
+            refreshSettings(s)
+        }
+        s.btnBattery.setOnClickListener { openBatterySettings() }
+
         s.cameraGroup.setOnCheckedChangeListener { _, checkedId ->
             val inside = checkedId == R.id.radioInside
             if (inside == dashcam.useFrontCamera) return@setOnCheckedChangeListener
@@ -404,6 +533,34 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         }
         s.switchBeep.isChecked = beepOn
         s.switchFit.isChecked = fitPreview
+
+        // Datos en el vídeo
+        s.switchSpeed.isChecked = Telemetry.showSpeed
+        s.switchCoords.isChecked = Telemetry.showCoords
+        s.switchBrand.isChecked = Telemetry.showBrand
+        s.overlayNote.text = if (dashcam.isCameraReady && !dashcam.overlayActive) {
+            "Este móvil no permite poner datos dentro del vídeo, así que no saldrán ni la fecha ni lo demás."
+        } else {
+            "La fecha y la hora salen siempre. Lo demás puedes quitarlo."
+        }
+        s.locationNote.text = when {
+            !wantsLocation() -> "El GPS está apagado: no se usa la ubicación."
+            !location.hasPermission() -> "Falta el permiso de ubicación: activa velocidad o coordenadas para pedirlo."
+            !Telemetry.hasFix -> "Buscando señal GPS… (al aire libre tarda menos de un minuto)."
+            else -> "GPS funcionando. La velocidad es orientativa. La ubicación solo va al vídeo, no sale del móvil."
+        }
+
+        // Segundo plano
+        s.switchBackground.isChecked = keepInBackground
+        val power = getSystemService(PowerManager::class.java)
+        val unrestricted = power?.isIgnoringBatteryOptimizations(packageName) == true
+        s.backgroundNote.text = when {
+            !keepInBackground -> "Al salir de la app se para la grabación y sigue al volver."
+            unrestricted -> "Si sales de la app sigue grabando (verás una notificación con «Guardar clip»). Al pulsar Atrás se para."
+            else -> "Si sales de la app sigue grabando, con una notificación con «Guardar clip». Algunos móviles (Xiaomi, Huawei, Oppo…) cierran las apps para ahorrar batería: pulsa el botón de abajo y quita la restricción a Dashcams España."
+        }
+        s.btnBattery.isVisible = !unrestricted
+
         if (dashcam.useFrontCamera) s.radioInside.isChecked = true else s.radioRoad.isChecked = true
         s.bothNote.text = if (dashcam.supportsBothCameras) {
             "Tu móvil puede usar las dos cámaras a la vez. Grabar carretera e interior juntas llegará en una próxima versión."
@@ -428,6 +585,32 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             !voice.isModelReady -> "Falta descargar el reconocedor de voz."
             voice.isListening -> "Escuchando. Di ${voice.phrase.label}, sola y con una pausa, y se guarda el clip."
             else -> "Se activa solo mientras se graba."
+        }
+    }
+
+    private fun askLocationIfNeeded() {
+        if (wantsLocation() && !location.hasPermission()) {
+            requestPermissions.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            )
+        }
+        syncLocation()
+    }
+
+    /** Abre la lista de optimización de batería del móvil; si no existe, la guía de dontkillmyapp.com. */
+    private fun openBatterySettings() {
+        Toast.makeText(
+            this,
+            "Busca «Dashcams España» y elige «Sin restricciones» o «No optimizar».",
+            Toast.LENGTH_LONG
+        ).show()
+        try {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://dontkillmyapp.com/")))
+            } catch (ignored: Exception) {
+            }
         }
     }
 
@@ -496,7 +679,7 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
             ).show()
         } else if (pausedForHeat && batteryTemp in 0f..HEAT_RESUME_C) {
             pausedForHeat = false
-            if (dashcam.isCameraReady && !userStopped) dashcam.startLoop()
+            if (dashcam.isCameraReady && !userStopped && cameraLifecycle.isActive) dashcam.startLoop()
             Toast.makeText(this, "Temperatura correcta, sigo grabando", Toast.LENGTH_SHORT).show()
         }
         updateStatus()
@@ -605,6 +788,10 @@ class MainActivity : AppCompatActivity(), DashcamController.Listener, VoiceComma
         private const val KEY_INSIDE_WARNED = "aviso_interior_visto"
         private const val KEY_VOICE = "voz"
         private const val KEY_PHRASE = "frase_voz"
+        private const val KEY_BACKGROUND = "segundo_plano"
+        private const val KEY_OVERLAY_SPEED = "datos_velocidad"
+        private const val KEY_OVERLAY_COORDS = "datos_coordenadas"
+        private const val KEY_OVERLAY_BRAND = "datos_marca"
 
         /** Por debajo de esto el kicker avisa de que queda poco espacio. */
         private const val LOW_SPACE_GB = 2f

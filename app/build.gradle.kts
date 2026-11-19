@@ -11,8 +11,8 @@ android {
         applicationId = "es.dashcams.app"
         minSdk = 26 // Android 8: la idea es usar móviles viejos
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.4.2"
+        versionCode = 8
+        versionName = "0.5.0"
 
         // Librerías nativas del control por voz: solo móviles ARM y el emulador del PC (x86_64)
         ndk {
@@ -73,6 +73,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-video:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+    // Fecha, velocidad, coordenadas y marca dibujadas dentro del vídeo
+    implementation("androidx.camera:camera-effects:$camerax")
 
     // Control por voz sin internet (el modelo de español se descarga al activarlo)
     implementation("com.alphacephei:vosk-android:0.3.47@aar")

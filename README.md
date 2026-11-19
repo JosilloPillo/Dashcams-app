@@ -3,7 +3,7 @@
 Convierte un móvil viejo en una dashcam. Gratis, sin cuentas y sin enviar nada a ningún servidor:
 los vídeos se quedan en el móvil.
 
-## Versión 0.4
+## Versión 0.5
 
 - Empieza a grabar sola al abrirla, en tramos de 1 minuto que se borran solos (bucle de ~3 GB).
 - **GUARDAR** (o cualquier tecla de volumen, o un mando Bluetooth de selfie): protege el minuto
@@ -14,6 +14,10 @@ los vídeos se quedan en el móvil.
   directamente a dashcams.es (mismo formulario y condiciones que la web) o a cualquier otra app.
 - Usa la cámara más angular del móvil (o el zoom mínimo, si el móvil junta varias lentes).
 - Vista de cámara a pantalla completa (16:9, igual que el vídeo).
+- **Datos dentro del vídeo**: fecha y hora siempre; velocidad, coordenadas GPS y escudo + «dashcams.es»
+  se pueden quitar en Ajustes. El GPS solo se usa para esto y no sale del móvil.
+- **Segundo plano**: si sales de la app sigue grabando, con una notificación fija y botón «Guardar clip».
+  Con Atrás se para todo. Se puede desactivar en Ajustes.
 - **Ajustes**: sonido, pitido al guardar, ver el encuadre completo, cámara de carretera o del interior
   (con aviso de privacidad) y control por voz.
 - **Control por voz** opcional y sin internet (Vosk): di la frase elegida en Ajustes («Grabación de emergencia», «Código rojo» o «Alerta, alerta»), sola y con una pausa. El reconocedor de español

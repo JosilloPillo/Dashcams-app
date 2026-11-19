@@ -20,6 +20,13 @@
     <string name="settings_beep">Pitido al guardar un clip</string>
     <string name="settings_fit">Ver la imagen completa (con bandas negras)</string>
     <string name="settings_fit_note">Solo cambia lo que ves en pantalla: siempre se graba la imagen entera.</string>
+    <string name="settings_overlay">Datos en el vídeo</string>
+    <string name="settings_overlay_speed">Velocidad</string>
+    <string name="settings_overlay_coords">Coordenadas GPS</string>
+    <string name="settings_overlay_brand">Escudo y dashcams.es</string>
+    <string name="settings_background">Segundo plano</string>
+    <string name="settings_background_switch">Seguir grabando si salgo de la app</string>
+    <string name="settings_battery_button">Que el móvil no cierre la app</string>
     <string name="settings_camera">Cámara</string>
     <string name="settings_camera_road">Carretera (cámara trasera del móvil)</string>
     <string name="settings_camera_inside">Interior del coche (cámara frontal)</string>
@@ -35,7 +42,7 @@
 
     <string name="gallery_title">Clips guardados</string>
     <string name="gallery_kicker">Tus clips</string>
-    <string name="gallery_subtitle">Lo que guardas con GUARDAR, la voz o un mando. No se borra nunca solo. La grabación se pausa mientras estás aquí.</string>
+    <string name="gallery_subtitle">Lo que guardas con GUARDAR, la voz, un mando o la notificación. No se borra nunca solo.</string>
     <string name="back">Volver</string>
     <string name="tab_events">Eventos</string>
     <string name="tab_loop">Últimos minutos</string>

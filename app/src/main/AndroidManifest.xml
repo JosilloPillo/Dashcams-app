@@ -12,6 +12,20 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Ubicación: solo para poner coordenadas y velocidad dentro del vídeo (no sale del móvil) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Seguir grabando con la app en segundo plano -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false" />
+
     <uses-feature
         android:name="android.hardware.microphone"
         android:required="false" />
@@ -44,6 +58,11 @@
             android:name=".SendClipActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <service
+            android:name=".RecordingService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone|location" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

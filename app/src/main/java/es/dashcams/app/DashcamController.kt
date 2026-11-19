@@ -2,20 +2,24 @@ package es.dashcams.app
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.view.Surface
 import androidx.annotation.OptIn
-import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
+import androidx.camera.core.CameraEffect
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
+import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.effects.OverlayEffect
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.FileOutputOptions
@@ -27,6 +31,7 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import java.io.File
 
 /**
@@ -35,10 +40,13 @@ import java.io.File
  * Graba tramos de [SEGMENT_MS]. Al acabar uno empieza el siguiente y se borran los más viejos.
  * Al pulsar GUARDAR se protegen tres tramos: el anterior, el actual y el siguiente
  * (así siempre hay al menos un minuto antes y otro después del momento del aviso).
+ *
+ * La cámara va ligada a [owner], no a la pantalla: así puede seguir grabando aunque la app
+ * pase a segundo plano. La vista previa se pone y se quita con [attachPreview] / [detachPreview].
  */
 class DashcamController(
-    private val activity: AppCompatActivity,
-    private val previewView: PreviewView,
+    private val context: Context,
+    private val owner: LifecycleOwner,
     private val storage: ClipStorage,
     private val listener: Listener,
 ) {
@@ -49,11 +57,23 @@ class DashcamController(
         fun onDashcamInfo(message: String)
     }
 
-    private val executor = ContextCompat.getMainExecutor(activity)
+    private val executor = ContextCompat.getMainExecutor(context)
     private val handler = Handler(Looper.getMainLooper())
+
+    // Hilo y efecto que dibujan fecha, velocidad, coordenadas y marca dentro del vídeo
+    private val overlayThread = HandlerThread("datos-en-video").apply { start() }
+    private val overlayHandler = Handler(overlayThread.looper)
+    private val renderer = OverlayRenderer(context)
+    private var overlayEffect: OverlayEffect? = null
+
+    /** true si este móvil acepta dibujar los datos dentro del vídeo. */
+    var overlayActive = false
+        private set
 
     private var videoCapture: VideoCapture<Recorder>? = null
     private var preview: Preview? = null
+    private var previewView: PreviewView? = null
+    private var targetRotation = Surface.ROTATION_90
 
     private var recording: Recording? = null
     private var currentFile: File? = null
@@ -97,8 +117,21 @@ class DashcamController(
     val segmentElapsedMs: Long
         get() = if (recording != null && currentStart > 0) System.currentTimeMillis() - currentStart else 0L
 
+    /** Muestra la imagen de la cámara en [view]. */
+    fun attachPreview(view: PreviewView) {
+        previewView = view
+        view.display?.rotation?.let { targetRotation = it }
+        preview?.setSurfaceProvider(view.surfaceProvider)
+    }
+
+    /** Quita la imagen de la pantalla (la app pasa a segundo plano); la grabación sigue. */
+    fun detachPreview() {
+        previewView = null
+        preview?.setSurfaceProvider(null)
+    }
+
     fun startCamera() {
-        val future = ProcessCameraProvider.getInstance(activity)
+        val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
             try {
                 val provider = future.get()
@@ -126,33 +159,60 @@ class DashcamController(
                             .build()
                     )
                     .build()
-                pv.setSurfaceProvider(previewView.surfaceProvider)
+                previewView?.let { pv.setSurfaceProvider(it.surfaceProvider) }
 
-                val rotation = previewView.display?.rotation ?: Surface.ROTATION_90
-                vc.setTargetRotation(rotation)
-                pv.setTargetRotation(rotation)
+                previewView?.display?.rotation?.let { targetRotation = it }
+                vc.setTargetRotation(targetRotation)
+                pv.setTargetRotation(targetRotation)
 
-                // Primero intentamos la cámara más angular del lado elegido; si da problemas, la normal.
+                overlayEffect?.close()
+                overlayEffect = null
+
+                // Primero la cámara más angular del lado elegido; si da problemas, la normal.
+                // Y para cada una, primero con los datos dentro del vídeo; si el móvil no puede, sin ellos.
                 val facing = if (useFrontCamera) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
                 val fallback = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
                 val widest = widestCamera(provider, facing)
                 val candidates = listOfNotNull(widest?.first, fallback)
+                val effectTargets = listOf(
+                    CameraEffect.VIDEO_CAPTURE,
+                    CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE,
+                    NO_EFFECT
+                )
+
                 var camera: Camera? = null
                 var lastError: Exception? = null
-                for (selector in candidates) {
-                    try {
-                        provider.unbindAll()
-                        camera = provider.bindToLifecycle(activity, selector, pv, vc)
-                        if (selector !== fallback && widest?.second == true) {
-                            listener.onDashcamInfo("Usando la cámara gran angular")
+                search@ for (selector in candidates) {
+                    for (targets in effectTargets) {
+                        var effect: OverlayEffect? = null
+                        try {
+                            provider.unbindAll()
+                            val group = UseCaseGroup.Builder().addUseCase(pv).addUseCase(vc)
+                            if (targets != NO_EFFECT) {
+                                effect = newOverlayEffect(targets)
+                                group.addEffect(effect)
+                            }
+                            camera = provider.bindToLifecycle(owner, selector, group.build())
+                            overlayEffect = effect
+                            overlayActive = effect != null
+                            if (selector !== fallback && widest?.second == true) {
+                                listener.onDashcamInfo("Usando la cámara gran angular")
+                            }
+                            break@search
+                        } catch (e: Exception) {
+                            lastError = e
+                            try {
+                                effect?.close()
+                            } catch (ignored: Exception) {
+                            }
                         }
-                        break
-                    } catch (e: Exception) {
-                        lastError = e
                     }
                 }
                 val bound = camera ?: throw (lastError ?: IllegalStateException("sin cámara"))
                 currentCamera = bound
+                if (!overlayActive) {
+                    listener.onDashcamInfo("Este móvil no permite poner la fecha y los datos dentro del vídeo")
+                }
 
                 applyWidestZoom(bound)
 
@@ -163,6 +223,14 @@ class DashcamController(
                 listener.onDashcamError("No se pudo abrir la cámara: ${e.message}")
             }
         }, executor)
+    }
+
+    private fun newOverlayEffect(targets: Int): OverlayEffect {
+        val effect = OverlayEffect(targets, 0, overlayHandler) { error ->
+            handler.post { listener.onDashcamInfo("Fallo al dibujar los datos en el vídeo: ${error.message}") }
+        }
+        effect.setOnDrawListener { frame -> renderer.draw(frame) }
+        return effect
     }
 
     /**
@@ -179,6 +247,17 @@ class DashcamController(
         startCamera()
     }
 
+    /** Cierra la cámara y libera el hilo de los datos (al cerrar la app del todo). */
+    fun release() {
+        stopLoop()
+        try {
+            overlayEffect?.close()
+        } catch (e: Exception) {
+        }
+        overlayEffect = null
+        overlayThread.quitSafely()
+    }
+
     /**
      * Busca la cámara de un lado ([lensFacing]) con más campo de visión (sensor más ancho respecto a la focal).
      * Devuelve su selector y si es distinta de la cámara principal de ese lado.
@@ -188,13 +267,13 @@ class DashcamController(
     private fun widestCamera(provider: ProcessCameraProvider, lensFacing: Int): Pair<CameraSelector, Boolean>? {
         var bestId: String? = null
         var bestRatio = 0f
-        var firstBackId: String? = null
+        var firstId: String? = null
         for (info in provider.availableCameraInfos) {
             try {
                 val c2 = Camera2CameraInfo.from(info)
                 val facing = c2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)
                 if (facing != lensFacing) continue
-                if (firstBackId == null) firstBackId = c2.cameraId
+                if (firstId == null) firstId = c2.cameraId
                 val sensor = c2.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: continue
                 val focal = c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
                     ?.minOrNull() ?: continue
@@ -220,13 +299,13 @@ class DashcamController(
                 }
             }
             .build()
-        return selector to (id != firstBackId)
+        return selector to (id != firstId)
     }
 
     /** En móviles que juntan varias lentes en una sola cámara, el gran angular se consigue con zoom < 1x. */
     private fun applyWidestZoom(camera: Camera) {
         var applied = false
-        camera.cameraInfo.zoomState.observe(activity) { state ->
+        camera.cameraInfo.zoomState.observe(owner) { state ->
             if (camera !== currentCamera) return@observe // es de una cámara que ya no usamos
             if (!applied && state != null && state.minZoomRatio < 0.99f) {
                 applied = true
@@ -240,6 +319,7 @@ class DashcamController(
 
     /** El móvil se ha girado 180º (soporte del revés): los próximos tramos salen derechos. */
     fun updateRotation(rotation: Int) {
+        targetRotation = rotation
         videoCapture?.setTargetRotation(rotation)
         preview?.setTargetRotation(rotation)
     }
@@ -278,7 +358,7 @@ class DashcamController(
     }
 
     private fun hasAudioPermission(): Boolean =
-        ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) ==
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
     @SuppressLint("MissingPermission") // se comprueba con hasAudioPermission()
@@ -293,7 +373,7 @@ class DashcamController(
         nextSegmentEvent = null
 
         try {
-            var pending = vc.output.prepareRecording(activity, options)
+            var pending = vc.output.prepareRecording(context, options)
             // Con permiso de micrófono el tramo lleva audio; si el usuario lo ha apagado, va silenciado.
             val withAudio = hasAudioPermission()
             if (withAudio) pending = pending.withAudioEnabled()
@@ -308,6 +388,7 @@ class DashcamController(
             if (withAudio && !soundOn) rec.mute(true)
             recording = rec
             currentFile = file
+            activeFile = file
             currentStart = System.currentTimeMillis()
         } catch (e: Exception) {
             pendingProtection.remove(file)
@@ -322,6 +403,7 @@ class DashcamController(
             recording = null
             currentStart = 0L
         }
+        if (activeFile == file) activeFile = null
 
         val error = event.error
         val ok = error == VideoRecordEvent.Finalize.ERROR_NONE ||
@@ -373,5 +455,11 @@ class DashcamController(
         const val MIN_FREE_BYTES = 500L * 1024 * 1024
         private const val MAX_FAILURES = 3
         private const val RETRY_DELAY_MS = 1_500L
+        private const val NO_EFFECT = 0
+
+        /** Tramo que se está grabando ahora mismo (la pantalla Clips no lo enseña). */
+        @Volatile
+        var activeFile: File? = null
+            private set
     }
 }

@@ -1,31 +1,19 @@
 # Pendiente para próximas versiones
 
-## Datos sobreimpresos en el vídeo (pedido el 19/11/2026)
+## Hecho en la 0.5 (19/11/2026)
 
-Que queden grabados dentro del propio clip (no solo en pantalla):
+- Datos dentro del vídeo: fecha y hora (siempre), velocidad, coordenadas y escudo + «dashcams.es»
+  (estos tres, desactivables en Ajustes).
+- Seguir grabando con la app en segundo plano (notificación con «Guardar clip»), desactivable en Ajustes,
+  con botón para quitar la optimización de batería.
 
-| Dato | ¿Se puede desactivar en Ajustes? |
-| --- | --- |
-| Fecha y hora | **No**, siempre visible |
-| Coordenadas GPS (latitud, longitud) | Sí |
-| Velocidad (km/h, por GPS) | Sí |
-| Escudo + «dashcams.es» | Sí |
+## Descartado
 
-Notas técnicas:
-- Grabarlo dentro del vídeo con `OverlayEffect` de CameraX (librería `camera-effects`), con el estilo de la guía
-  (Public Sans / Barlow, pastilla translúcida).
-- Coordenadas y velocidad necesitan permiso de ubicación (`ACCESS_FINE_LOCATION`); se pide solo si se activan.
-  Siguen sin salir del móvil.
-- Velocidad: la del GPS; avisar de que es orientativa (las apps de la competencia reciben quejas por velocidad
-  imprecisa).
+- Empezar a grabar al conectar el cargador o el Bluetooth: se graba al abrir la app y ya.
 
-## Ideas sacadas de las reseñas de Droid Dashcam
-
-- Empezar a grabar sola al conectar el cargador o el Bluetooth del coche (es de lo más valorado).
-- Seguir grabando en segundo plano (servicio en primer plano) y guiar al usuario para quitar la optimización
-  de batería (Xiaomi, Huawei, Oppo... matan las apps).
-
-## Ya apuntado antes
+## Pendiente
 
 - Grabar carretera e interior a la vez en móviles que lo permitan (Ajustes ya detecta si se puede).
 - Versión para iPhone (necesita cuenta de desarrollador de Apple).
+- Antes de publicar en Google Play: clave de firma propia, declarar en la consola el uso de cámara,
+  micrófono y ubicación en segundo plano, y la ficha de «Seguridad de los datos».

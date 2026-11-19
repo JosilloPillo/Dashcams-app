@@ -54,7 +54,9 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
-        val list = if (showLoop) storage.loopSegments().reversed() else storage.savedClips()
+        // El tramo que se está grabando ahora mismo no se enseña (aún no está terminado)
+        val recordingNow = DashcamController.activeFile
+        val list = if (showLoop) storage.loopSegments().filter { it != recordingNow }.reversed() else storage.savedClips()
         adapter.submit(list, showLoop)
     }
 
