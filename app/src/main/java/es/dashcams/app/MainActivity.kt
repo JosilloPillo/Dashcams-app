@@ -171,7 +171,7 @@ class MainActivity : AppCompatActivity(),
         location = LocationTracker(this)
 
         dashcam.soundOn = prefs.getBoolean(KEY_SOUND, true) // sonido activado por defecto
-        dashcam.setInitialCamera(prefs.getBoolean(KEY_INSIDE, false))
+        dashcam.setInitialCamera(savedCameraMode())
         beepOn = prefs.getBoolean(KEY_BEEP, true)
         fitPreview = prefs.getBoolean(KEY_FIT, false)
         voiceOn = prefs.getBoolean(KEY_VOICE, false)
@@ -483,21 +483,26 @@ class MainActivity : AppCompatActivity(),
         s.btnBattery.setOnClickListener { openBatterySettings() }
 
         s.cameraGroup.setOnCheckedChangeListener { _, checkedId ->
-            val inside = checkedId == R.id.radioInside
-            if (inside == dashcam.useFrontCamera) return@setOnCheckedChangeListener
-            if (inside && !prefs.getBoolean(KEY_INSIDE_WARNED, false)) {
+            val mode = when (checkedId) {
+                R.id.radioInside -> DashcamController.CameraMode.INSIDE
+                R.id.radioBoth -> DashcamController.CameraMode.BOTH
+                else -> DashcamController.CameraMode.ROAD
+            }
+            if (mode == dashcam.cameraMode) return@setOnCheckedChangeListener
+            val filmsInside = mode != DashcamController.CameraMode.ROAD
+            if (filmsInside && !prefs.getBoolean(KEY_INSIDE_WARNED, false)) {
                 MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.inside_title)
                     .setMessage(R.string.inside_text)
-                    .setNegativeButton(R.string.cancel) { _, _ -> s.radioRoad.isChecked = true }
+                    .setNegativeButton(R.string.cancel) { _, _ -> checkCameraRadio(s) }
                     .setPositiveButton(R.string.inside_ok) { _, _ ->
                         prefs.edit().putBoolean(KEY_INSIDE_WARNED, true).apply()
-                        switchCamera(true)
+                        switchCamera(mode)
                     }
-                    .setOnCancelListener { s.radioRoad.isChecked = true }
+                    .setOnCancelListener { checkCameraRadio(s) }
                     .show()
             } else {
-                switchCamera(inside)
+                switchCamera(mode)
             }
         }
         s.switchVoice.setOnCheckedChangeListener { _, on ->
@@ -561,11 +566,17 @@ class MainActivity : AppCompatActivity(),
         }
         s.btnBattery.isVisible = !unrestricted
 
-        if (dashcam.useFrontCamera) s.radioInside.isChecked = true else s.radioRoad.isChecked = true
-        s.bothNote.text = if (dashcam.supportsBothCameras) {
-            "Tu móvil puede usar las dos cámaras a la vez. Grabar carretera e interior juntas llegará en una próxima versión."
-        } else {
-            "Tu móvil no permite usar las dos cámaras a la vez: se graba una u otra."
+        s.radioBoth.isEnabled = dashcam.supportsBothCameras || dashcam.cameraMode == DashcamController.CameraMode.BOTH
+        s.radioBoth.alpha = if (s.radioBoth.isEnabled) 1f else 0.4f
+        checkCameraRadio(s)
+        s.bothNote.text = when {
+            dashcam.bothActive ->
+                "Grabando las dos a la vez en un solo vídeo: la carretera de fondo y el interior en una ventanita. Gasta más batería y calienta más el móvil."
+            dashcam.cameraMode == DashcamController.CameraMode.BOTH ->
+                "Has elegido las dos a la vez, pero el móvil no ha podido abrirlas juntas: se está grabando solo la carretera."
+            dashcam.supportsBothCameras ->
+                "Tu móvil puede usar las dos cámaras a la vez: la carretera de fondo y el interior en una ventanita, en el mismo vídeo."
+            else -> "Tu móvil no permite usar las dos cámaras a la vez: se graba una u otra."
         }
 
         s.switchVoice.isChecked = voiceOn
@@ -649,16 +660,37 @@ class MainActivity : AppCompatActivity(),
         syncVoice()
     }
 
-    private fun switchCamera(inside: Boolean) {
-        prefs.edit().putBoolean(KEY_INSIDE, inside).apply()
+    private fun switchCamera(mode: DashcamController.CameraMode) {
+        prefs.edit()
+            .putString(KEY_CAMERA_MODE, mode.name)
+            .putBoolean(KEY_INSIDE, mode == DashcamController.CameraMode.INSIDE)
+            .apply()
         voice.stop()
-        dashcam.switchCamera(inside)
-        Toast.makeText(
-            this,
-            if (inside) "Grabando el interior del coche" else "Grabando la carretera",
-            Toast.LENGTH_SHORT
-        ).show()
+        dashcam.switchCamera(mode)
+        if (mode != DashcamController.CameraMode.BOTH) {
+            Toast.makeText(
+                this,
+                if (mode == DashcamController.CameraMode.INSIDE) "Grabando el interior del coche" else "Grabando la carretera",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
         updateStatus()
+    }
+
+    /** Lo elegido en Ajustes. Las versiones anteriores solo guardaban si era el interior. */
+    private fun savedCameraMode(): DashcamController.CameraMode {
+        val saved = prefs.getString(KEY_CAMERA_MODE, null)
+        if (saved != null) return DashcamController.CameraMode.fromName(saved)
+        return if (prefs.getBoolean(KEY_INSIDE, false)) DashcamController.CameraMode.INSIDE
+        else DashcamController.CameraMode.ROAD
+    }
+
+    private fun checkCameraRadio(s: SheetSettingsBinding) {
+        when (dashcam.cameraMode) {
+            DashcamController.CameraMode.ROAD -> s.radioRoad.isChecked = true
+            DashcamController.CameraMode.INSIDE -> s.radioInside.isChecked = true
+            DashcamController.CameraMode.BOTH -> s.radioBoth.isChecked = true
+        }
     }
 
     private fun applyPreviewScale() {
@@ -707,7 +739,8 @@ class MainActivity : AppCompatActivity(),
                     else -> "$savedCount clips"
                 }
                 val flags = buildString {
-                    if (dashcam.useFrontCamera) append(" · interior")
+                    if (dashcam.bothActive) append(" · 2 cámaras")
+                    else if (dashcam.useFrontCamera) append(" · interior")
                     if (!dashcam.soundOn || !hasAudioPermission()) append(" · sin sonido")
                     if (::voice.isInitialized && voice.isListening) append(" · voz")
                 }
@@ -785,6 +818,7 @@ class MainActivity : AppCompatActivity(),
         private const val KEY_BEEP = "pitido"
         private const val KEY_FIT = "encuadre_completo"
         private const val KEY_INSIDE = "camara_interior"
+        private const val KEY_CAMERA_MODE = "modo_camara"
         private const val KEY_INSIDE_WARNED = "aviso_interior_visto"
         private const val KEY_VOICE = "voz"
         private const val KEY_PHRASE = "frase_voz"

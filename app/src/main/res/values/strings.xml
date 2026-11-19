@@ -30,6 +30,7 @@
     <string name="settings_camera">Cámara</string>
     <string name="settings_camera_road">Carretera (cámara trasera del móvil)</string>
     <string name="settings_camera_inside">Interior del coche (cámara frontal)</string>
+    <string name="settings_camera_both">Las dos a la vez (carretera + interior en pequeño)</string>
     <string name="settings_voice">Control por voz</string>
     <string name="settings_voice_switch">Guardar el clip con la voz</string>
     <string name="settings_voice_phrase">Frase para guardar. Dila sola, con una pausa antes y después: si va dentro de una conversación no cuenta.</string>

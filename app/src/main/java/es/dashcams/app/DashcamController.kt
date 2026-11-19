@@ -15,6 +15,8 @@ import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraEffect
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CompositionSettings
+import androidx.camera.core.ConcurrentCamera
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -97,19 +99,40 @@ class DashcamController(
             recording?.mute(!value)
         }
 
-    /** true = cámara frontal del móvil (graba el interior del coche). */
-    var useFrontCamera: Boolean = false
+    /** Qué graba la app. */
+    enum class CameraMode {
+        /** Cámara trasera del móvil: la carretera. */
+        ROAD,
+        /** Cámara frontal del móvil: el interior del coche. */
+        INSIDE,
+        /** Las dos a la vez en un solo vídeo: carretera de fondo e interior en una ventanita. */
+        BOTH;
+
+        companion object {
+            fun fromName(name: String?): CameraMode = values().firstOrNull { it.name == name } ?: ROAD
+        }
+    }
+
+    /** Lo que ha elegido el usuario. */
+    var cameraMode: CameraMode = CameraMode.ROAD
         private set
 
-    /** Si el móvil permite usar dos cámaras a la vez (para grabar carretera e interior juntas en el futuro). */
+    /** true si de verdad están grabando las dos cámaras (el móvil lo ha aceptado). */
+    var bothActive: Boolean = false
+        private set
+
+    /** true = solo cámara frontal (interior). */
+    val useFrontCamera: Boolean get() = cameraMode == CameraMode.INSIDE
+
+    /** Si el móvil permite usar la cámara trasera y la frontal a la vez. */
     var supportsBothCameras: Boolean = false
         private set
 
     private var currentCamera: Camera? = null
 
     /** Para elegir la cámara antes de abrirla por primera vez (lo guardado en Ajustes). */
-    fun setInitialCamera(front: Boolean) {
-        if (videoCapture == null) useFrontCamera = front
+    fun setInitialCamera(mode: CameraMode) {
+        if (videoCapture == null) cameraMode = mode
     }
 
     val isCameraReady: Boolean get() = videoCapture != null
@@ -168,12 +191,6 @@ class DashcamController(
                 overlayEffect?.close()
                 overlayEffect = null
 
-                // Primero la cámara más angular del lado elegido; si da problemas, la normal.
-                // Y para cada una, primero con los datos dentro del vídeo; si el móvil no puede, sin ellos.
-                val facing = if (useFrontCamera) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
-                val fallback = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-                val widest = widestCamera(provider, facing)
-                val candidates = listOfNotNull(widest?.first, fallback)
                 val effectTargets = listOf(
                     CameraEffect.VIDEO_CAPTURE,
                     CameraEffect.PREVIEW or CameraEffect.VIDEO_CAPTURE,
@@ -182,28 +199,96 @@ class DashcamController(
 
                 var camera: Camera? = null
                 var lastError: Exception? = null
-                search@ for (selector in candidates) {
-                    for (targets in effectTargets) {
-                        var effect: OverlayEffect? = null
-                        try {
-                            provider.unbindAll()
-                            val group = UseCaseGroup.Builder().addUseCase(pv).addUseCase(vc)
-                            if (targets != NO_EFFECT) {
-                                effect = newOverlayEffect(targets)
-                                group.addEffect(effect)
-                            }
-                            camera = provider.bindToLifecycle(owner, selector, group.build())
-                            overlayEffect = effect
-                            overlayActive = effect != null
-                            if (selector !== fallback && widest?.second == true) {
-                                listener.onDashcamInfo("Usando la cámara gran angular")
-                            }
-                            break@search
-                        } catch (e: Exception) {
-                            lastError = e
+                bothActive = false
+
+                // Modo "las dos a la vez": la carretera ocupa todo el vídeo y el interior va en una ventanita.
+                if (cameraMode == CameraMode.BOTH) {
+                    val pair = if (supportsBothCameras) concurrentPair(provider) else null
+                    if (pair != null) {
+                        for (targets in effectTargets) {
+                            var effect: OverlayEffect? = null
                             try {
-                                effect?.close()
-                            } catch (ignored: Exception) {
+                                provider.unbindAll()
+                                val group = UseCaseGroup.Builder().addUseCase(pv).addUseCase(vc)
+                                if (targets != NO_EFFECT) {
+                                    effect = newOverlayEffect(targets)
+                                    group.addEffect(effect)
+                                }
+                                val built = group.build()
+                                val road = ConcurrentCamera.SingleCameraConfig(
+                                    pair.first,
+                                    built,
+                                    CompositionSettings.Builder()
+                                        .setAlphaScale(1f)
+                                        .setOffset(0f, 0f)
+                                        .setScale(1f, 1f)
+                                        .build(),
+                                    owner
+                                )
+                                val inside = ConcurrentCamera.SingleCameraConfig(
+                                    pair.second,
+                                    built,
+                                    CompositionSettings.Builder()
+                                        .setAlphaScale(1f)
+                                        .setOffset(0f, INSIDE_WINDOW_Y)
+                                        .setScale(INSIDE_WINDOW_SCALE, INSIDE_WINDOW_SCALE)
+                                        .build(),
+                                    owner
+                                )
+                                val concurrent = provider.bindToLifecycle(listOf(road, inside))
+                                camera = concurrent.cameras.firstOrNull() ?: throw IllegalStateException("sin cámaras")
+                                overlayEffect = effect
+                                overlayActive = effect != null
+                                bothActive = true
+                                listener.onDashcamInfo("Grabando carretera e interior a la vez")
+                                break
+                            } catch (e: Exception) {
+                                lastError = e
+                                try {
+                                    effect?.close()
+                                } catch (ignored: Exception) {
+                                }
+                            }
+                        }
+                    }
+                    if (camera == null) {
+                        listener.onDashcamInfo(
+                            if (pair == null) "Este móvil no deja usar las dos cámaras a la vez: grabando solo la carretera"
+                            else "No se han podido abrir las dos cámaras a la vez: grabando solo la carretera"
+                        )
+                    }
+                }
+
+                // Una sola cámara: primero la más angular del lado elegido; si da problemas, la normal.
+                // Y para cada una, primero con los datos dentro del vídeo; si el móvil no puede, sin ellos.
+                if (camera == null) {
+                    val facing = if (useFrontCamera) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
+                    val fallback = if (useFrontCamera) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                    val widest = widestCamera(provider, facing)
+                    val candidates = listOfNotNull(widest?.first, fallback)
+                    search@ for (selector in candidates) {
+                        for (targets in effectTargets) {
+                            var effect: OverlayEffect? = null
+                            try {
+                                provider.unbindAll()
+                                val group = UseCaseGroup.Builder().addUseCase(pv).addUseCase(vc)
+                                if (targets != NO_EFFECT) {
+                                    effect = newOverlayEffect(targets)
+                                    group.addEffect(effect)
+                                }
+                                camera = provider.bindToLifecycle(owner, selector, group.build())
+                                overlayEffect = effect
+                                overlayActive = effect != null
+                                if (selector !== fallback && widest?.second == true) {
+                                    listener.onDashcamInfo("Usando la cámara gran angular")
+                                }
+                                break@search
+                            } catch (e: Exception) {
+                                lastError = e
+                                try {
+                                    effect?.close()
+                                } catch (ignored: Exception) {
+                                }
                             }
                         }
                     }
@@ -214,7 +299,8 @@ class DashcamController(
                     listener.onDashcamInfo("Este móvil no permite poner la fecha y los datos dentro del vídeo")
                 }
 
-                applyWidestZoom(bound)
+                // Con las dos cámaras no tocamos el zoom: el móvil ya va justo de recursos.
+                if (!bothActive) applyWidestZoom(bound)
 
                 videoCapture = vc
                 preview = pv
@@ -234,12 +320,12 @@ class DashcamController(
     }
 
     /**
-     * Cambia entre la cámara delantera de la carretera (trasera del móvil) y la del interior
-     * (frontal del móvil). Corta el tramo actual y vuelve a abrir la cámara.
+     * Cambia entre la carretera (cámara trasera del móvil), el interior (frontal) o las dos a la vez.
+     * Corta el tramo actual y vuelve a abrir la cámara.
      */
-    fun switchCamera(front: Boolean) {
-        if (front == useFrontCamera) return
-        useFrontCamera = front
+    fun switchCamera(mode: CameraMode) {
+        if (mode == cameraMode) return
+        cameraMode = mode
         stopLoop()
         videoCapture = null
         preview = null
@@ -288,7 +374,12 @@ class DashcamController(
             }
         }
         val id = bestId ?: return null
-        val selector = CameraSelector.Builder()
+        return selectorForId(id) to (id != firstId)
+    }
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun selectorForId(id: String): CameraSelector =
+        CameraSelector.Builder()
             .addCameraFilter { infos ->
                 infos.filter { info ->
                     try {
@@ -299,7 +390,34 @@ class DashcamController(
                 }
             }
             .build()
-        return selector to (id != firstId)
+
+    /**
+     * Busca, entre las combinaciones que el móvil deja abrir a la vez, una con cámara trasera y frontal.
+     * Devuelve (carretera, interior) o null si no hay ninguna.
+     */
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun concurrentPair(provider: ProcessCameraProvider): Pair<CameraSelector, CameraSelector>? {
+        val combos = try {
+            provider.availableConcurrentCameraInfos
+        } catch (e: Exception) {
+            return null
+        }
+        for (combo in combos) {
+            var backId: String? = null
+            var frontId: String? = null
+            for (info in combo) {
+                try {
+                    val c2 = Camera2CameraInfo.from(info)
+                    when (c2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)) {
+                        CameraCharacteristics.LENS_FACING_BACK -> if (backId == null) backId = c2.cameraId
+                        CameraCharacteristics.LENS_FACING_FRONT -> if (frontId == null) frontId = c2.cameraId
+                    }
+                } catch (e: Exception) {
+                }
+            }
+            if (backId != null && frontId != null) return selectorForId(backId) to selectorForId(frontId)
+        }
+        return null
     }
 
     /** En móviles que juntan varias lentes en una sola cámara, el gran angular se consigue con zoom < 1x. */
@@ -456,6 +574,10 @@ class DashcamController(
         private const val MAX_FAILURES = 3
         private const val RETRY_DELAY_MS = 1_500L
         private const val NO_EFFECT = 0
+
+        /** Ventanita del interior: 30 % del tamaño, centrada arriba (cielo), lejos de los datos de abajo. */
+        private const val INSIDE_WINDOW_SCALE = 0.3f
+        private const val INSIDE_WINDOW_Y = 0.65f
 
         /** Tramo que se está grabando ahora mismo (la pantalla Clips no lo enseña). */
         @Volatile

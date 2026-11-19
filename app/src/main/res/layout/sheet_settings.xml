@@ -160,6 +160,15 @@
                 android:text="@string/settings_camera_inside"
                 android:textColor="@android:color/white"
                 android:textSize="16sp" />
+
+            <RadioButton
+                android:id="@+id/radioBoth"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/settings_camera_both"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
         </RadioGroup>
 
         <TextView

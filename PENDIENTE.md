@@ -1,5 +1,10 @@
 # Pendiente para próximas versiones
 
+## Hecho en la 0.6 (19/11/2026)
+
+- Carretera e interior a la vez en un solo vídeo (interior en ventanita), en móviles que lo permiten.
+  Por probar en un móvil real: posición de la ventanita y si los datos del vídeo salen también en este modo.
+
 ## Hecho en la 0.5 (19/11/2026)
 
 - Datos dentro del vídeo: fecha y hora (siempre), velocidad, coordenadas y escudo + «dashcams.es»
@@ -13,7 +18,6 @@
 
 ## Pendiente
 
-- Grabar carretera e interior a la vez en móviles que lo permitan (Ajustes ya detecta si se puede).
 - Versión para iPhone (necesita cuenta de desarrollador de Apple).
 - Antes de publicar en Google Play: clave de firma propia, declarar en la consola el uso de cámara,
   micrófono y ubicación en segundo plano, y la ficha de «Seguridad de los datos».
