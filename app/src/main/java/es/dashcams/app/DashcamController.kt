@@ -219,7 +219,6 @@ class DashcamController(
                                     pair.first,
                                     built,
                                     CompositionSettings.Builder()
-                                        .setAlphaScale(1f)
                                         .setOffset(0f, 0f)
                                         .setScale(1f, 1f)
                                         .build(),
@@ -229,7 +228,6 @@ class DashcamController(
                                     pair.second,
                                     built,
                                     CompositionSettings.Builder()
-                                        .setAlphaScale(1f)
                                         .setOffset(0f, INSIDE_WINDOW_Y)
                                         .setScale(INSIDE_WINDOW_SCALE, INSIDE_WINDOW_SCALE)
                                         .build(),
