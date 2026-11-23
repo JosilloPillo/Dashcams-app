@@ -21,12 +21,16 @@ class ClipStorage(context: Context) {
     val loopDir: File = File(root, "bucle").apply { mkdirs() }
     val savedDir: File = File(root, "guardados").apply { mkdirs() }
 
-    fun newSegmentFile(): File {
+    /**
+     * Fichero para el siguiente tramo: "tramo_20261118_210412_F.mp4".
+     * La letra del final dice qué cámara lo grabó: F carretera, I interior, FI las dos.
+     */
+    fun newSegmentFile(camTag: String): File {
         val base = "tramo_" + stamp(System.currentTimeMillis())
-        var file = File(loopDir, "$base.mp4")
+        var file = File(loopDir, "${base}_$camTag.mp4")
         var n = 1
         while (file.exists()) {
-            file = File(loopDir, "${base}_$n.mp4")
+            file = File(loopDir, "${base}-${n}_$camTag.mp4")
             n++
         }
         return file
@@ -37,7 +41,7 @@ class ClipStorage(context: Context) {
             ?.sortedBy { it.name }
             ?: emptyList()
 
-    /** Clips guardados: el evento más reciente primero y, dentro de cada evento, parte 1, 2, 3. */
+    /** Clips guardados por orden de tiempo: el evento más reciente primero y, dentro de cada evento, parte 1, 2, 3. */
     fun savedClips(): List<File> =
         savedDir.listFiles { f -> f.isFile && f.name.endsWith(".mp4") }
             ?.sortedWith(
@@ -49,7 +53,9 @@ class ClipStorage(context: Context) {
     /** Mueve un tramo terminado a "guardados" para que el bucle no lo borre. */
     fun protect(segment: File, eventStamp: String, part: Int): File? {
         if (!segment.exists() || segment.length() == 0L) return null
-        val target = File(savedDir, "evento_${eventStamp}_parte$part.mp4")
+        val cam = ClipNames.camera(segment)
+        val suffix = if (cam.isEmpty()) "" else "_$cam"
+        val target = File(savedDir, "evento_${eventStamp}_parte$part$suffix.mp4")
         if (segment.renameTo(target)) return target
         return try {
             segment.copyTo(target, overwrite = true)

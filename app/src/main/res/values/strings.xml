@@ -23,7 +23,6 @@
     <string name="settings_overlay">Datos en el vídeo</string>
     <string name="settings_overlay_speed">Velocidad</string>
     <string name="settings_overlay_coords">Coordenadas GPS</string>
-    <string name="settings_overlay_brand">Escudo y dashcams.es</string>
     <string name="settings_background">Segundo plano</string>
     <string name="settings_background_switch">Seguir grabando si salgo de la app</string>
     <string name="settings_battery_button">Que el móvil no cierre la app</string>

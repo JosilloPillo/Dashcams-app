@@ -206,13 +206,13 @@ class ClipAdapter(
 
         if (loop) {
             // Tramo de la grabación normal: se puede guardar como evento
-            b.partCircle.text = "↺"
+            b.partCircle.text = ClipNames.cameraBadge(file)
             b.subtitle.text = ClipNames.loopSubtitle(file)
             b.btnDelete.setText(R.string.keep)
             b.btnDelete.setTextColor(ContextCompat.getColor(ctx, R.color.verde_ok))
             b.btnDelete.setOnClickListener { onKeep(file) }
         } else {
-            b.partCircle.text = ClipNames.part(file)
+            b.partCircle.text = ClipNames.cameraBadge(file)
             b.subtitle.text = ClipNames.subtitle(file)
             b.btnDelete.setText(R.string.delete)
             b.btnDelete.setTextColor(ContextCompat.getColor(ctx, R.color.rojo_marca))
@@ -239,8 +239,21 @@ class ClipAdapter(
 
 /** Convierte "evento_20261118_210412_parte2.mp4" y "tramo_20261118_210412.mp4" en textos legibles. */
 object ClipNames {
-    private val pattern = Regex("""evento_(\d{8})_(\d{6})_parte(\d)\.mp4""")
+    private val pattern = Regex("""evento_(\d{8})_(\d{6})_parte(\d)(?:_[A-Z]+)?\.mp4""")
     private val anyStamp = Regex("""(?:evento|tramo)_(\d{8})_(\d{6}).*\.mp4""")
+    private val camPattern = Regex("""_(F|I|FI)\.mp4$""")
+
+    /** "F" (carretera), "I" (interior), "FI" (las dos) o "" en clips de versiones antiguas. */
+    fun camera(file: File): String = camPattern.find(file.name)?.groupValues?.get(1) ?: ""
+
+    /** Letra del círculo de la tarjeta. Los clips antiguos no la llevan: se asume la carretera. */
+    fun cameraBadge(file: File): String = camera(file).ifEmpty { "F" }
+
+    private fun cameraText(file: File): String = when (cameraBadge(file)) {
+        "I" -> "Interior"
+        "FI" -> "Carretera + interior"
+        else -> "Carretera"
+    }
 
     fun title(file: File): String {
         val m = anyStamp.matchEntire(file.name) ?: return file.name
@@ -266,17 +279,17 @@ object ClipNames {
 
     fun subtitle(file: File): String {
         val part = when (pattern.matchEntire(file.name)?.groupValues?.get(3)) {
-            "1" -> "Minuto anterior al aviso"
-            "2" -> "Momento del aviso"
-            "3" -> "Minuto posterior al aviso"
+            "1" -> "Parte 1 de 3 · minuto anterior al aviso"
+            "2" -> "Parte 2 de 3 · momento del aviso"
+            "3" -> "Parte 3 de 3 · minuto posterior al aviso"
             else -> "Clip"
         }
         val mb = file.length() / (1024 * 1024)
-        return "$part · $mb MB"
+        return "${cameraText(file)} · $part · $mb MB"
     }
 
     fun loopSubtitle(file: File): String {
         val mb = file.length() / (1024 * 1024)
-        return "Grabación normal · se borrará sola · $mb MB"
+        return "${cameraText(file)} · grabación normal · se borrará sola · $mb MB"
     }
 }

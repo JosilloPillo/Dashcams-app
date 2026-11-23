@@ -22,7 +22,8 @@ import kotlin.math.abs
 object Telemetry {
     @Volatile var showCoords = true
     @Volatile var showSpeed = true
-    @Volatile var showBrand = true
+    /** El escudo y «dashcams.es» salen siempre: la app es gratis y así la gente puede encontrarla. */
+    const val showBrand = true
 
     @Volatile private var lat = 0.0
     @Volatile private var lon = 0.0

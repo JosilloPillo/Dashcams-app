@@ -3,7 +3,7 @@
 Convierte un móvil viejo en una dashcam. Gratis, sin cuentas y sin enviar nada a ningún servidor:
 los vídeos se quedan en el móvil.
 
-## Versión 0.7 (Alpha)
+## Versión 0.8 (Alpha)
 
 - Empieza a grabar sola al abrirla, en tramos de 1 minuto que se borran solos (bucle de ~3 GB).
 - **GUARDAR** (o cualquier tecla de volumen, o un mando Bluetooth de selfie): protege el minuto

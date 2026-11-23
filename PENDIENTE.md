@@ -1,5 +1,12 @@
 # Pendiente para próximas versiones
 
+## Hecho en la 0.8 (23/11/2026)
+
+- El escudo y «dashcams.es» salen siempre en el vídeo (ya no se pueden quitar).
+- Pitido al guardar por el canal de alarma (antes no se oía en muchos móviles).
+- Cada clip lleva la letra de su cámara: F carretera, I interior, FI las dos.
+- Dos cámaras a 720p (lo máximo que Android garantiza con dos cámaras) y el motivo del fallo en Ajustes.
+
 ## Hecho en la 0.7 (19/11/2026)
 
 - Icono de la app a elegir: España + 17 comunidades + Ceuta y Melilla (originales en marca/comunidades/).
@@ -22,6 +29,7 @@
 
 ## Pendiente
 
+- Pasar a Android 16 (targetSdk 36) y actualizar el plugin de Android: obligatorio para Google Play.
 - Versión para iPhone (necesita cuenta de desarrollador de Apple).
 - Antes de publicar en Google Play: clave de firma propia, declarar en la consola el uso de cámara,
   micrófono y ubicación en segundo plano, y la ficha de «Seguridad de los datos».

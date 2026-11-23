@@ -88,13 +88,6 @@
             android:layout_height="wrap_content"
             android:text="@string/settings_overlay_coords" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchBrand"
-            style="@style/Dashcams.SettingsSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_overlay_brand" />
-
         <TextView
             android:id="@+id/locationNote"
             style="@style/Dashcams.SettingsNote"

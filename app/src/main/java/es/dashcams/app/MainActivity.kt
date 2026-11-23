@@ -86,7 +86,9 @@ class MainActivity : AppCompatActivity(),
         .setMaxStreams(1)
         .setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                // Como alarma: suena aunque el móvil esté en silencio o con el volumen de sistema a cero,
+                // que es como suelen ir en el coche. Antes no se oía en muchos móviles.
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
         )
@@ -185,7 +187,6 @@ class MainActivity : AppCompatActivity(),
         keepInBackground = prefs.getBoolean(KEY_BACKGROUND, true)
         Telemetry.showSpeed = prefs.getBoolean(KEY_OVERLAY_SPEED, true)
         Telemetry.showCoords = prefs.getBoolean(KEY_OVERLAY_COORDS, true)
-        Telemetry.showBrand = prefs.getBoolean(KEY_OVERLAY_BRAND, true)
         applyPreviewScale()
         beepId = soundPool.load(this, R.raw.guardado, 1)
 
@@ -475,10 +476,6 @@ class MainActivity : AppCompatActivity(),
             askLocationIfNeeded()
             refreshSettings(s)
         }
-        s.switchBrand.setOnCheckedChangeListener { _, on ->
-            Telemetry.showBrand = on
-            prefs.edit().putBoolean(KEY_OVERLAY_BRAND, on).apply()
-        }
 
         // Segundo plano
         s.switchBackground.setOnCheckedChangeListener { _, on ->
@@ -549,11 +546,10 @@ class MainActivity : AppCompatActivity(),
         // Datos en el vídeo
         s.switchSpeed.isChecked = Telemetry.showSpeed
         s.switchCoords.isChecked = Telemetry.showCoords
-        s.switchBrand.isChecked = Telemetry.showBrand
         s.overlayNote.text = if (dashcam.isCameraReady && !dashcam.overlayActive) {
             "Este móvil no permite poner datos dentro del vídeo, así que no saldrán ni la fecha ni lo demás."
         } else {
-            "La fecha y la hora salen siempre. Lo demás puedes quitarlo."
+            "La fecha, la hora y el escudo con dashcams.es salen siempre. La velocidad y las coordenadas puedes quitarlas."
         }
         s.locationNote.text = when {
             !wantsLocation() -> "El GPS está apagado: no se usa la ubicación."
@@ -580,7 +576,8 @@ class MainActivity : AppCompatActivity(),
             dashcam.bothActive ->
                 "Grabando las dos a la vez en un solo vídeo: la carretera de fondo y el interior en una ventanita. Gasta más batería y calienta más el móvil."
             dashcam.cameraMode == DashcamController.CameraMode.BOTH ->
-                "Has elegido las dos a la vez, pero el móvil no ha podido abrirlas juntas: se está grabando solo la carretera."
+                "Has elegido las dos a la vez, pero el móvil no ha podido abrirlas juntas: se está grabando solo la carretera." +
+                    (dashcam.bothProblem?.let { "\nMotivo: $it" } ?: "")
             dashcam.supportsBothCameras ->
                 "Tu móvil puede usar las dos cámaras a la vez: la carretera de fondo y el interior en una ventanita, en el mismo vídeo."
             else -> "Tu móvil no permite usar las dos cámaras a la vez: se graba una u otra."
@@ -894,7 +891,6 @@ class MainActivity : AppCompatActivity(),
         private const val KEY_BACKGROUND = "segundo_plano"
         private const val KEY_OVERLAY_SPEED = "datos_velocidad"
         private const val KEY_OVERLAY_COORDS = "datos_coordenadas"
-        private const val KEY_OVERLAY_BRAND = "datos_marca"
 
         /** Por debajo de esto el kicker avisa de que queda poco espacio. */
         private const val LOW_SPACE_GB = 2f

@@ -3,6 +3,7 @@ package es.dashcams.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Size
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Handler
@@ -20,6 +21,7 @@ import androidx.camera.core.ConcurrentCamera
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.effects.OverlayEffect
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -117,6 +119,10 @@ class DashcamController(
     var cameraMode: CameraMode = CameraMode.ROAD
         private set
 
+    /** Por qué no se han podido abrir las dos cámaras la última vez (para enseñarlo en Ajustes). */
+    var bothProblem: String? = null
+        private set
+
     /** true si de verdad están grabando las dos cámaras (el móvil lo ha aceptado). */
     var bothActive: Boolean = false
         private set
@@ -164,29 +170,8 @@ class DashcamController(
                     false
                 }
 
-                val recorder = Recorder.Builder()
-                    .setQualitySelector(
-                        QualitySelector.from(
-                            Quality.FHD,
-                            FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
-                        )
-                    )
-                    .build()
-                val vc = VideoCapture.withOutput(recorder)
-
-                // La vista previa en 16:9, igual que el vídeo (por defecto Android la da en 4:3)
-                val pv = Preview.Builder()
-                    .setResolutionSelector(
-                        ResolutionSelector.Builder()
-                            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
-                            .build()
-                    )
-                    .build()
-                previewView?.let { pv.setSurfaceProvider(it.surfaceProvider) }
-
                 previewView?.display?.rotation?.let { targetRotation = it }
-                vc.setTargetRotation(targetRotation)
-                pv.setTargetRotation(targetRotation)
+                var (pv, vc) = makeUseCases(hdOnly = false)
 
                 overlayEffect?.close()
                 overlayEffect = null
@@ -200,16 +185,25 @@ class DashcamController(
                 var camera: Camera? = null
                 var lastError: Exception? = null
                 bothActive = false
+                bothProblem = null
 
                 // Modo "las dos a la vez": la carretera ocupa todo el vídeo y el interior va en una ventanita.
                 if (cameraMode == CameraMode.BOTH) {
                     val pair = if (supportsBothCameras) concurrentPair(provider) else null
-                    if (pair != null) {
+                    if (pair == null) {
+                        bothProblem = if (supportsBothCameras) {
+                            "el móvil no ofrece la cámara trasera y la frontal juntas"
+                        } else {
+                            "el móvil no permite abrir dos cámaras a la vez"
+                        }
+                    } else {
+                        // Con dos cámaras Android solo garantiza hasta 720p: pedir más hace que falle.
+                        val (bothPv, bothVc) = makeUseCases(hdOnly = true)
                         for (targets in effectTargets) {
                             var effect: OverlayEffect? = null
                             try {
                                 provider.unbindAll()
-                                val group = UseCaseGroup.Builder().addUseCase(pv).addUseCase(vc)
+                                val group = UseCaseGroup.Builder().addUseCase(bothPv).addUseCase(bothVc)
                                 if (targets != NO_EFFECT) {
                                     effect = newOverlayEffect(targets)
                                     group.addEffect(effect)
@@ -235,6 +229,8 @@ class DashcamController(
                                 )
                                 val concurrent = provider.bindToLifecycle(listOf(road, inside))
                                 camera = concurrent.cameras.firstOrNull() ?: throw IllegalStateException("sin cámaras")
+                                pv = bothPv
+                                vc = bothVc
                                 overlayEffect = effect
                                 overlayActive = effect != null
                                 bothActive = true
@@ -242,6 +238,7 @@ class DashcamController(
                                 break
                             } catch (e: Exception) {
                                 lastError = e
+                                bothProblem = e.message ?: e.javaClass.simpleName
                                 try {
                                     effect?.close()
                                 } catch (ignored: Exception) {
@@ -307,6 +304,28 @@ class DashcamController(
                 listener.onDashcamError("No se pudo abrir la cámara: ${e.message}")
             }
         }, executor)
+    }
+
+    /** Vista previa en 16:9 (igual que el vídeo) y grabadora. Con [hdOnly], como mucho 720p. */
+    private fun makeUseCases(hdOnly: Boolean): Pair<Preview, VideoCapture<Recorder>> {
+        val quality = if (hdOnly) {
+            QualitySelector.from(Quality.HD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))
+        } else {
+            QualitySelector.from(Quality.FHD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))
+        }
+        val vc = VideoCapture.withOutput(Recorder.Builder().setQualitySelector(quality).build())
+        val selector = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+        if (hdOnly) {
+            selector.setResolutionStrategy(
+                ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+            )
+        }
+        val pv = Preview.Builder().setResolutionSelector(selector.build()).build()
+        previewView?.let { pv.setSurfaceProvider(it.surfaceProvider) }
+        vc.setTargetRotation(targetRotation)
+        pv.setTargetRotation(targetRotation)
+        return pv to vc
     }
 
     private fun newOverlayEffect(targets: Int): OverlayEffect {
@@ -480,7 +499,13 @@ class DashcamController(
     @SuppressLint("MissingPermission") // se comprueba con hasAudioPermission()
     private fun startSegment() {
         val vc = videoCapture ?: return
-        val file = storage.newSegmentFile()
+        // F = carretera (cámara trasera del móvil), I = interior (frontal), FI = las dos.
+        val camTag = when {
+            bothActive -> "FI"
+            useFrontCamera -> "I"
+            else -> "F"
+        }
+        val file = storage.newSegmentFile(camTag)
         val options = FileOutputOptions.Builder(file)
             .setDurationLimitMillis(SEGMENT_MS)
             .build()
