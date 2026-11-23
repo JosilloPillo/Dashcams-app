@@ -82,6 +82,9 @@ class DashcamController(
     private var videoCapture: VideoCapture<Recorder>? = null
     private var preview: Preview? = null
     private var previewView: PreviewView? = null
+    /** Ventanita con la imagen del interior (solo con las dos cámaras). */
+    private var insidePreviewView: PreviewView? = null
+    private var insidePreview: Preview? = null
     private var targetRotation = Surface.ROTATION_90
 
     private var recording: Recording? = null
@@ -152,16 +155,20 @@ class DashcamController(
         get() = if (recording != null && currentStart > 0) System.currentTimeMillis() - currentStart else 0L
 
     /** Muestra la imagen de la cámara en [view]. */
-    fun attachPreview(view: PreviewView) {
+    fun attachPreview(view: PreviewView, insideView: PreviewView? = null) {
         previewView = view
+        insidePreviewView = insideView
         view.display?.rotation?.let { targetRotation = it }
         preview?.setSurfaceProvider(view.surfaceProvider)
+        insideView?.let { insidePreview?.setSurfaceProvider(it.surfaceProvider) }
     }
 
     /** Quita la imagen de la pantalla (la app pasa a segundo plano); la grabación sigue. */
     fun detachPreview() {
         previewView = null
+        insidePreviewView = null
         preview?.setSurfaceProvider(null)
+        insidePreview?.setSurfaceProvider(null)
     }
 
     fun startCamera() {
@@ -181,6 +188,8 @@ class DashcamController(
                 closeEffects()
                 insideTrack?.stop()
                 insideTrack = null
+                insidePreview?.setSurfaceProvider(null)
+                insidePreview = null
 
                 val effectTargets = listOf(
                     CameraEffect.VIDEO_CAPTURE,
@@ -212,9 +221,13 @@ class DashcamController(
                                 val (roadPv, roadVc) = makeUseCases(hdOnly = true, inside = false)
                                 // Con dos cámaras, el interior también en 16:9 a 720p: es el tamaño que
                                 // Android garantiza para dos cámaras (el 4:3 puede no estar admitido).
-                                val insideVc = makeCapture(hdOnly = true, inside = false)
+                                // Cada cámara necesita su propia vista previa además del vídeo: sin ella,
+                                // CameraX intenta meterlo todo en la cámara de la carretera y falla.
+                                val (insidePv, insideVc) = makeUseCases(
+                                    hdOnly = true, inside = false, view = insidePreviewView
+                                )
                                 val roadGroup = UseCaseGroup.Builder().addUseCase(roadPv).addUseCase(roadVc)
-                                val insideGroup = UseCaseGroup.Builder().addUseCase(insideVc)
+                                val insideGroup = UseCaseGroup.Builder().addUseCase(insidePv).addUseCase(insideVc)
                                 if (withData) {
                                     roadEffect = newOverlayEffect(CameraEffect.VIDEO_CAPTURE)
                                     insideEffect = newOverlayEffect(CameraEffect.VIDEO_CAPTURE)
@@ -234,6 +247,7 @@ class DashcamController(
                                 overlayEffect2 = insideEffect
                                 overlayActive = roadEffect != null
                                 insideTrack = InsideTrack(insideVc)
+                                insidePreview = insidePv
                                 bothActive = true
                                 listener.onDashcamInfo("Grabando carretera e interior a la vez, en dos vídeos")
                                 break
@@ -313,7 +327,11 @@ class DashcamController(
      * Vista previa y grabadora. La carretera va en 16:9; el interior en 4:3, que es la forma del
      * sensor de la cámara frontal (en 16:9 se pierde arriba y abajo). Con [hdOnly], como mucho 720p.
      */
-    private fun makeUseCases(hdOnly: Boolean, inside: Boolean): Pair<Preview, VideoCapture<Recorder>> {
+    private fun makeUseCases(
+        hdOnly: Boolean,
+        inside: Boolean,
+        view: PreviewView? = previewView
+    ): Pair<Preview, VideoCapture<Recorder>> {
         val vc = makeCapture(hdOnly, inside)
         val selector = ResolutionSelector.Builder()
             .setAspectRatioStrategy(
@@ -329,7 +347,7 @@ class DashcamController(
             )
         }
         val pv = Preview.Builder().setResolutionSelector(selector.build()).build()
-        previewView?.let { pv.setSurfaceProvider(it.surfaceProvider) }
+        view?.let { pv.setSurfaceProvider(it.surfaceProvider) }
         pv.setTargetRotation(targetRotation)
         return pv to vc
     }

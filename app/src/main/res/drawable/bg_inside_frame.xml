@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Marco de la ventanita del interior -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/fondo_profundo" />
+    <corners android:radius="10dp" />
+    <stroke android:width="2dp" android:color="@color/amarillo" />
+</shape>

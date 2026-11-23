@@ -12,6 +12,26 @@
         android:layout_height="match_parent"
         app:scaleType="fillCenter" />
 
+    <!-- Ventanita con el interior del coche, solo cuando se graban las dos cámaras -->
+    <FrameLayout
+        android:id="@+id/insideFrame"
+        android:layout_width="176dp"
+        android:layout_height="99dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="64dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/bg_inside_frame"
+        android:padding="2dp"
+        android:visibility="gone">
+
+        <androidx.camera.view.PreviewView
+            android:id="@+id/insidePreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:implementationMode="compatible"
+            app:scaleType="fillCenter" />
+    </FrameLayout>
+
     <!-- Degradados azul marino arriba y abajo para que se lean los controles sobre la imagen -->
     <View
         android:layout_width="match_parent"

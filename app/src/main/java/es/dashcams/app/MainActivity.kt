@@ -264,7 +264,7 @@ class MainActivity : AppCompatActivity(),
         }
         settings?.let { refreshSettings(it) } // p. ej. al volver de dar el permiso del botón flotante
         if (cameraStarted) cameraLifecycle.resume()
-        dashcam.attachPreview(binding.previewView)
+        dashcam.attachPreview(binding.previewView, binding.insidePreview)
         getSystemService(DisplayManager::class.java)?.registerDisplayListener(displayListener, ui)
 
         if (resumeOnStart && dashcam.isCameraReady && !pausedForHeat) {
@@ -856,6 +856,7 @@ class MainActivity : AppCompatActivity(),
 
     private fun updateStatus() {
         if (!::dashcam.isInitialized) return
+        binding.insideFrame.isVisible = dashcam.bothActive
         val recording = dashcam.isLoopRunning
         val blinkOn = (System.currentTimeMillis() / 500L) % 2L == 0L
         binding.recDot.visibility = if (recording && blinkOn) View.VISIBLE else View.INVISIBLE
