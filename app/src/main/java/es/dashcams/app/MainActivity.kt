@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity(),
     private var inAppScreen = false
     /** Al salir, Android no dejó seguir grabando en segundo plano: se avisa al volver. */
     private var backgroundFailed = false
-    private var bubbleOn = true
+    private var bubbleOn = false
 
     private var batteryTemp = -1f
     private var batteryLevel = -1
@@ -191,7 +191,7 @@ class MainActivity : AppCompatActivity(),
         voiceOn = prefs.getBoolean(KEY_VOICE, false)
         voice.phrase = VoiceCommand.Phrase.fromName(prefs.getString(KEY_PHRASE, null))
         keepInBackground = prefs.getBoolean(KEY_BACKGROUND, true)
-        bubbleOn = prefs.getBoolean(KEY_BUBBLE, true)
+        bubbleOn = prefs.getBoolean(KEY_BUBBLE, false) // apagado de serie: al activarlo se piden los permisos
         Telemetry.showSpeed = prefs.getBoolean(KEY_OVERLAY_SPEED, true)
         Telemetry.showCoords = prefs.getBoolean(KEY_OVERLAY_COORDS, true)
         applyPreviewScale()

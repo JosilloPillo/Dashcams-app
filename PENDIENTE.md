@@ -4,7 +4,7 @@
 
 - Segundo plano: pide permiso de notificaciones, solo sigue grabando fuera si Android ha aceptado el servicio y, si no, avisa con el motivo.
 - Abrir Clips ya no para la grabación.
-- Botón flotante (escudo) sobre otras apps: tocar guarda, mantener abre la app, arrastrar lo mueve.
+- Botón flotante (escudo) sobre otras apps: tocar guarda, mantener abre la app, arrastrar lo mueve. Desde la 0.9.1 viene apagado y al activarlo pide el permiso.
 - Dos cámaras en dos vídeos separados (_F y _I) a 720p, en vez de uno combinado.
 - Interior en 4:3 para no recortar el sensor de la cámara frontal.
 - Eventos: solo el minuto del aviso, más el anterior si cae en sus primeros 20 s o el siguiente si cae en los últimos 20 s.
