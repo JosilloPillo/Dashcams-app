@@ -11,6 +11,7 @@ import java.util.Locale
 /**
  * Dónde viven los vídeos. Todo se queda en el móvil, en la carpeta privada de la app:
  *  - bucle/      tramos de 1 minuto que se van borrando solos (los más viejos primero)
+ *  Nombres: dashcams.es_23-11-2026_13-15-00_F.mp4 y dashcams.es_evento_23-11-2026_13-15-00_parte1_F.mp4
  *  - guardados/  clips que el usuario ha guardado; el bucle nunca los toca
  */
 class ClipStorage(context: Context) {
@@ -22,11 +23,11 @@ class ClipStorage(context: Context) {
     val savedDir: File = File(root, "guardados").apply { mkdirs() }
 
     /**
-     * Fichero para el siguiente tramo: "tramo_20261118_210412_F.mp4".
+     * Fichero para el siguiente tramo: "dashcams.es_23-11-2026_13-15-00_F.mp4".
      * La letra del final dice qué cámara lo grabó: F carretera, I interior, FI las dos.
      */
     fun newSegmentFile(camTag: String): File {
-        val base = "tramo_" + stamp(System.currentTimeMillis())
+        val base = "$PREFIX" + stamp(System.currentTimeMillis())
         var file = File(loopDir, "${base}_$camTag.mp4")
         var n = 1
         while (file.exists()) {
@@ -36,16 +37,18 @@ class ClipStorage(context: Context) {
         return file
     }
 
+    /** Tramos del bucle, del más viejo al más nuevo. */
     fun loopSegments(): List<File> =
         loopDir.listFiles { f -> f.isFile && f.name.endsWith(".mp4") }
-            ?.sortedBy { it.name }
+            ?.sortedWith(compareBy<File> { ClipNames.timeOf(it) }.thenBy { it.name })
             ?: emptyList()
 
     /** Clips guardados por orden de tiempo: el evento más reciente primero y, dentro de cada evento, parte 1, 2, 3. */
     fun savedClips(): List<File> =
         savedDir.listFiles { f -> f.isFile && f.name.endsWith(".mp4") }
             ?.sortedWith(
-                compareByDescending<File> { it.name.substringBeforeLast("_parte") }
+                compareByDescending<File> { ClipNames.timeOf(it) }
+                    .thenBy { ClipNames.part(it) ?: 0 }
                     .thenBy { it.name }
             )
             ?: emptyList()
@@ -55,7 +58,7 @@ class ClipStorage(context: Context) {
         if (!segment.exists() || segment.length() == 0L) return null
         val cam = ClipNames.camera(segment)
         val suffix = if (cam.isEmpty()) "" else "_$cam"
-        val target = File(savedDir, "evento_${eventStamp}_parte$part$suffix.mp4")
+        val target = File(savedDir, "${PREFIX}evento_${eventStamp}_parte$part$suffix.mp4")
         if (segment.renameTo(target)) return target
         return try {
             segment.copyTo(target, overwrite = true)
@@ -88,7 +91,13 @@ class ClipStorage(context: Context) {
     }
 
     companion object {
+        /** Así empiezan todos los vídeos, para que quien los vea sepa de dónde salen. */
+        const val PREFIX = "dashcams.es_"
+
+        /** Fecha y hora para los nombres: "23-11-2026_13-15-00" (día-mes-año_hora-minuto-segundo). */
+        const val STAMP_FORMAT = "dd-MM-yyyy_HH-mm-ss"
+
         fun stamp(millis: Long): String =
-            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(millis))
+            SimpleDateFormat(STAMP_FORMAT, Locale.US).format(Date(millis))
     }
 }

@@ -18,6 +18,8 @@ import es.dashcams.app.databinding.ActivityGalleryBinding
 import es.dashcams.app.databinding.ItemClipBinding
 import es.dashcams.app.databinding.ItemGalleryHeaderBinding
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /**
  * Pantalla Clips, con dos pestañas:
@@ -237,11 +239,58 @@ class ClipAdapter(
     }
 }
 
-/** Convierte "evento_20261118_210412_parte2.mp4" y "tramo_20261118_210412.mp4" en textos legibles. */
+/**
+ * Lee los nombres de los vídeos y los convierte en textos legibles.
+ * Nombres actuales:  dashcams.es_23-11-2026_13-15-00_F.mp4 · dashcams.es_evento_23-11-2026_13-15-00_parte1_F.mp4
+ * Nombres antiguos:  tramo_20261118_210412.mp4 · evento_20261118_210412_parte2.mp4 (se siguen entendiendo)
+ */
 object ClipNames {
-    private val pattern = Regex("""evento_(\d{8})_(\d{6})_parte(\d)(?:_[A-Z]+)?\.mp4""")
-    private val anyStamp = Regex("""(?:evento|tramo)_(\d{8})_(\d{6}).*\.mp4""")
+    private val newStamp = Regex("""(\d{2})-(\d{2})-(\d{4})_(\d{2})-(\d{2})-(\d{2})""")
+    private val oldStamp = Regex("""(?:evento|tramo)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})""")
+    private val partRe = Regex("""_parte(\d)""")
     private val camPattern = Regex("""_(F|I|FI)\.mp4$""")
+
+    /** [día, mes, año, hora, minuto, segundo] del nombre, o null si no se entiende. */
+    private fun fields(file: File): List<String>? {
+        newStamp.find(file.name)?.let { return it.groupValues.drop(1) }
+        oldStamp.find(file.name)?.let { m ->
+            val g = m.groupValues
+            return listOf(g[3], g[2], g[1], g[4], g[5], g[6])
+        }
+        return null
+    }
+
+    fun title(file: File): String {
+        val f = fields(file) ?: return file.name
+        return "${f[0]}/${f[1]}/${f[2]} · ${f[3]}:${f[4]}:${f[5]}"
+    }
+
+    /** "23-11-2026_13-15-00" a partir del nombre del fichero. */
+    fun stampOf(file: File): String? =
+        fields(file)?.let { "${it[0]}-${it[1]}-${it[2]}_${it[3]}-${it[4]}-${it[5]}" }
+
+    /** Momento del clip (o del evento) para ordenar. */
+    fun timeOf(file: File): Long {
+        val stamp = stampOf(file) ?: return file.lastModified()
+        return try {
+            SimpleDateFormat(ClipStorage.STAMP_FORMAT, Locale.US).parse(stamp)?.time ?: file.lastModified()
+        } catch (e: Exception) {
+            file.lastModified()
+        }
+    }
+
+    fun isEvent(file: File): Boolean = file.name.contains("evento_")
+
+    /** 1, 2 o 3 en los eventos; null en el resto. */
+    fun part(file: File): Int? =
+        if (isEvent(file)) partRe.find(file.name)?.groupValues?.get(1)?.toIntOrNull() else null
+
+    /** Todas las partes guardadas del mismo evento que [file] (parte 1, 2, 3), en orden. */
+    fun eventParts(file: File, saved: List<File>): List<File> {
+        if (!isEvent(file)) return if (file.exists()) listOf(file) else emptyList()
+        val key = stampOf(file) ?: return listOf(file)
+        return saved.filter { isEvent(it) && stampOf(it) == key }.sortedBy { part(it) ?: 0 }
+    }
 
     /** "F" (carretera), "I" (interior), "FI" (las dos) o "" en clips de versiones antiguas. */
     fun camera(file: File): String = camPattern.find(file.name)?.groupValues?.get(1) ?: ""
@@ -255,33 +304,11 @@ object ClipNames {
         else -> "Carretera"
     }
 
-    fun title(file: File): String {
-        val m = anyStamp.matchEntire(file.name) ?: return file.name
-        val d = m.groupValues[1]
-        val t = m.groupValues[2]
-        return "${d.substring(6, 8)}/${d.substring(4, 6)}/${d.substring(0, 4)} · " +
-            "${t.substring(0, 2)}:${t.substring(2, 4)}:${t.substring(4, 6)}"
-    }
-
-    /** "20261118_210412" a partir del nombre del fichero. */
-    fun stampOf(file: File): String? =
-        anyStamp.matchEntire(file.name)?.let { "${it.groupValues[1]}_${it.groupValues[2]}" }
-
-    /** "1", "2" o "3" para el círculo de la tarjeta. */
-    fun part(file: File): String = pattern.matchEntire(file.name)?.groupValues?.get(3) ?: "•"
-
-    /** Todas las partes guardadas del mismo evento que [file] (parte 1, 2, 3), en orden. */
-    fun eventParts(file: File, saved: List<File>): List<File> {
-        val m = pattern.matchEntire(file.name) ?: return if (file.exists()) listOf(file) else emptyList()
-        val prefix = "evento_${m.groupValues[1]}_${m.groupValues[2]}_parte"
-        return saved.filter { it.name.startsWith(prefix) }.sortedBy { it.name }
-    }
-
     fun subtitle(file: File): String {
-        val part = when (pattern.matchEntire(file.name)?.groupValues?.get(3)) {
-            "1" -> "Parte 1 de 3 · minuto anterior al aviso"
-            "2" -> "Parte 2 de 3 · momento del aviso"
-            "3" -> "Parte 3 de 3 · minuto posterior al aviso"
+        val part = when (part(file)) {
+            1 -> "Parte 1 de 3 · minuto anterior al aviso"
+            2 -> "Parte 2 de 3 · momento del aviso"
+            3 -> "Parte 3 de 3 · minuto posterior al aviso"
             else -> "Clip"
         }
         val mb = file.length() / (1024 * 1024)

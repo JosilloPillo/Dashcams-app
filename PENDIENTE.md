@@ -5,6 +5,7 @@
 - El escudo y «dashcams.es» salen siempre en el vídeo (ya no se pueden quitar).
 - Pitido al guardar por el canal de alarma (antes no se oía en muchos móviles).
 - Cada clip lleva la letra de su cámara: F carretera, I interior, FI las dos.
+- 0.8.1: nombres con fecha a la española y prefijo de la web: dashcams.es_23-11-2026_13-15-00_F.mp4.
 - Dos cámaras a 720p (lo máximo que Android garantiza con dos cámaras) y el motivo del fallo en Ajustes.
 
 ## Hecho en la 0.7 (19/11/2026)
