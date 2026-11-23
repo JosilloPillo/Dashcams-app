@@ -374,7 +374,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onDashcamInfo(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, message, if (message.length > 60) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
     }
 
     // ---- VoiceCommand.Listener ----

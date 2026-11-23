@@ -210,7 +210,9 @@ class DashcamController(
                             try {
                                 provider.unbindAll()
                                 val (roadPv, roadVc) = makeUseCases(hdOnly = true, inside = false)
-                                val insideVc = makeCapture(hdOnly = true, inside = true)
+                                // Con dos cámaras, el interior también en 16:9 a 720p: es el tamaño que
+                                // Android garantiza para dos cámaras (el 4:3 puede no estar admitido).
+                                val insideVc = makeCapture(hdOnly = true, inside = false)
                                 val roadGroup = UseCaseGroup.Builder().addUseCase(roadPv).addUseCase(roadVc)
                                 val insideGroup = UseCaseGroup.Builder().addUseCase(insideVc)
                                 if (withData) {
@@ -248,7 +250,10 @@ class DashcamController(
                         }
                     }
                     if (camera == null) {
-                        listener.onDashcamInfo("No se han podido abrir las dos cámaras a la vez: grabando solo la carretera")
+                        listener.onDashcamInfo(
+                            "No se han podido abrir las dos cámaras a la vez: grabando solo la carretera" +
+                                (bothProblem?.let { ". Motivo: $it" } ?: "")
+                        )
                     }
                 }
 
