@@ -49,7 +49,7 @@ class ClipStorage(context: Context) {
             ?.sortedWith(
                 compareByDescending<File> { ClipNames.timeOf(it) }
                     .thenBy { ClipNames.part(it) ?: 0 }
-                    .thenBy { it.name }
+                    .thenBy { ClipNames.cameraBadge(it) }
             )
             ?: emptyList()
 

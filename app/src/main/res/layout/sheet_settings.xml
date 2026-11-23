@@ -124,6 +124,20 @@
             android:text="@string/settings_battery_button"
             android:textSize="14sp" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchBubble"
+            style="@style/Dashcams.SettingsSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_bubble_switch" />
+
+        <TextView
+            android:id="@+id/bubbleNote"
+            style="@style/Dashcams.SettingsNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
         <!-- ===== Cámara ===== -->
         <TextView
             style="@style/Dashcams.SettingsSection"

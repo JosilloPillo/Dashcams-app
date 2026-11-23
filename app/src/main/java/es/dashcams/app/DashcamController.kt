@@ -15,8 +15,8 @@ import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraEffect
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.CompositionSettings
 import androidx.camera.core.ConcurrentCamera
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
@@ -42,8 +42,8 @@ import java.io.File
  * Cámara + grabación en bucle.
  *
  * Graba tramos de [SEGMENT_MS]. Al acabar uno empieza el siguiente y se borran los más viejos.
- * Al pulsar GUARDAR se protegen tres tramos: el anterior, el actual y el siguiente
- * (así siempre hay al menos un minuto antes y otro después del momento del aviso).
+ * Al pulsar GUARDAR se protege el minuto que se está grabando. Si el aviso cae en sus primeros
+ * 20 s, también el anterior; si cae en los últimos 20 s, también el siguiente.
  *
  * La cámara va ligada a [owner], no a la pantalla: así puede seguir grabando aunque la app
  * pase a segundo plano. La vista previa se pone y se quita con [attachPreview] / [detachPreview].
@@ -69,6 +69,11 @@ class DashcamController(
     private val overlayHandler = Handler(overlayThread.looper)
     private val renderer = OverlayRenderer(context)
     private var overlayEffect: OverlayEffect? = null
+    /** Efecto del vídeo del interior cuando se graban las dos cámaras. */
+    private var overlayEffect2: OverlayEffect? = null
+
+    /** Grabación del interior en paralelo (solo en el modo de dos cámaras). */
+    private var insideTrack: InsideTrack? = null
 
     /** true si este móvil acepta dibujar los datos dentro del vídeo. */
     var overlayActive = false
@@ -88,7 +93,7 @@ class DashcamController(
 
     /** Tramos que hay que mover a "guardados" cuando terminen de escribirse: fichero -> (evento, parte). */
     private val pendingProtection = mutableMapOf<File, Pair<String, Int>>()
-    /** Si no es null, el próximo tramo que empiece se guardará como parte 3 de este evento. */
+    /** Si no es null, el próximo tramo que empiece se guardará como «minuto siguiente» de este evento. */
     private var nextSegmentEvent: String? = null
 
     /**
@@ -107,7 +112,7 @@ class DashcamController(
         ROAD,
         /** Cámara frontal del móvil: el interior del coche. */
         INSIDE,
-        /** Las dos a la vez en un solo vídeo: carretera de fondo e interior en una ventanita. */
+        /** Las dos a la vez, en dos vídeos separados: carretera (_F) e interior (_I). */
         BOTH;
 
         companion object {
@@ -171,10 +176,11 @@ class DashcamController(
                 }
 
                 previewView?.display?.rotation?.let { targetRotation = it }
-                var (pv, vc) = makeUseCases(hdOnly = false)
+                var (pv, vc) = makeUseCases(hdOnly = false, inside = useFrontCamera)
 
-                overlayEffect?.close()
-                overlayEffect = null
+                closeEffects()
+                insideTrack?.stop()
+                insideTrack = null
 
                 val effectTargets = listOf(
                     CameraEffect.VIDEO_CAPTURE,
@@ -187,70 +193,62 @@ class DashcamController(
                 bothActive = false
                 bothProblem = null
 
-                // Modo "las dos a la vez": la carretera ocupa todo el vídeo y el interior va en una ventanita.
+                // Modo "las dos a la vez": dos vídeos separados, uno de la carretera (_F) y otro del interior (_I).
                 if (cameraMode == CameraMode.BOTH) {
                     val pair = if (supportsBothCameras) concurrentPair(provider) else null
                     if (pair == null) {
                         bothProblem = if (supportsBothCameras) {
                             "el móvil no ofrece la cámara trasera y la frontal juntas"
                         } else {
-                            "el móvil no permite abrir dos cámaras a la vez"
+                            "el móvil no permite abrir dos cámaras a la vez (Android no se lo deja a otras apps)"
                         }
                     } else {
                         // Con dos cámaras Android solo garantiza hasta 720p: pedir más hace que falle.
-                        val (bothPv, bothVc) = makeUseCases(hdOnly = true)
-                        for (targets in effectTargets) {
-                            var effect: OverlayEffect? = null
+                        for (withData in listOf(true, false)) {
+                            var roadEffect: OverlayEffect? = null
+                            var insideEffect: OverlayEffect? = null
                             try {
                                 provider.unbindAll()
-                                val group = UseCaseGroup.Builder().addUseCase(bothPv).addUseCase(bothVc)
-                                if (targets != NO_EFFECT) {
-                                    effect = newOverlayEffect(targets)
-                                    group.addEffect(effect)
+                                val (roadPv, roadVc) = makeUseCases(hdOnly = true, inside = false)
+                                val insideVc = makeCapture(hdOnly = true, inside = true)
+                                val roadGroup = UseCaseGroup.Builder().addUseCase(roadPv).addUseCase(roadVc)
+                                val insideGroup = UseCaseGroup.Builder().addUseCase(insideVc)
+                                if (withData) {
+                                    roadEffect = newOverlayEffect(CameraEffect.VIDEO_CAPTURE)
+                                    insideEffect = newOverlayEffect(CameraEffect.VIDEO_CAPTURE)
+                                    roadGroup.addEffect(roadEffect)
+                                    insideGroup.addEffect(insideEffect)
                                 }
-                                val built = group.build()
-                                val road = ConcurrentCamera.SingleCameraConfig(
-                                    pair.first,
-                                    built,
-                                    CompositionSettings.Builder()
-                                        .setOffset(0f, 0f)
-                                        .setScale(1f, 1f)
-                                        .build(),
-                                    owner
+                                val concurrent = provider.bindToLifecycle(
+                                    listOf(
+                                        ConcurrentCamera.SingleCameraConfig(pair.first, roadGroup.build(), owner),
+                                        ConcurrentCamera.SingleCameraConfig(pair.second, insideGroup.build(), owner)
+                                    )
                                 )
-                                val inside = ConcurrentCamera.SingleCameraConfig(
-                                    pair.second,
-                                    built,
-                                    CompositionSettings.Builder()
-                                        .setOffset(0f, INSIDE_WINDOW_Y)
-                                        .setScale(INSIDE_WINDOW_SCALE, INSIDE_WINDOW_SCALE)
-                                        .build(),
-                                    owner
-                                )
-                                val concurrent = provider.bindToLifecycle(listOf(road, inside))
                                 camera = concurrent.cameras.firstOrNull() ?: throw IllegalStateException("sin cámaras")
-                                pv = bothPv
-                                vc = bothVc
-                                overlayEffect = effect
-                                overlayActive = effect != null
+                                pv = roadPv
+                                vc = roadVc
+                                overlayEffect = roadEffect
+                                overlayEffect2 = insideEffect
+                                overlayActive = roadEffect != null
+                                insideTrack = InsideTrack(insideVc)
                                 bothActive = true
-                                listener.onDashcamInfo("Grabando carretera e interior a la vez")
+                                listener.onDashcamInfo("Grabando carretera e interior a la vez, en dos vídeos")
                                 break
                             } catch (e: Exception) {
                                 lastError = e
                                 bothProblem = e.message ?: e.javaClass.simpleName
-                                try {
-                                    effect?.close()
-                                } catch (ignored: Exception) {
+                                for (effect in listOf(roadEffect, insideEffect)) {
+                                    try {
+                                        effect?.close()
+                                    } catch (ignored: Exception) {
+                                    }
                                 }
                             }
                         }
                     }
                     if (camera == null) {
-                        listener.onDashcamInfo(
-                            if (pair == null) "Este móvil no deja usar las dos cámaras a la vez: grabando solo la carretera"
-                            else "No se han podido abrir las dos cámaras a la vez: grabando solo la carretera"
-                        )
+                        listener.onDashcamInfo("No se han podido abrir las dos cámaras a la vez: grabando solo la carretera")
                     }
                 }
 
@@ -306,26 +304,53 @@ class DashcamController(
         }, executor)
     }
 
-    /** Vista previa en 16:9 (igual que el vídeo) y grabadora. Con [hdOnly], como mucho 720p. */
-    private fun makeUseCases(hdOnly: Boolean): Pair<Preview, VideoCapture<Recorder>> {
+    /**
+     * Vista previa y grabadora. La carretera va en 16:9; el interior en 4:3, que es la forma del
+     * sensor de la cámara frontal (en 16:9 se pierde arriba y abajo). Con [hdOnly], como mucho 720p.
+     */
+    private fun makeUseCases(hdOnly: Boolean, inside: Boolean): Pair<Preview, VideoCapture<Recorder>> {
+        val vc = makeCapture(hdOnly, inside)
+        val selector = ResolutionSelector.Builder()
+            .setAspectRatioStrategy(
+                if (inside) AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+                else AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
+            )
+        if (hdOnly) {
+            selector.setResolutionStrategy(
+                ResolutionStrategy(
+                    if (inside) Size(960, 720) else Size(1280, 720),
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                )
+            )
+        }
+        val pv = Preview.Builder().setResolutionSelector(selector.build()).build()
+        previewView?.let { pv.setSurfaceProvider(it.surfaceProvider) }
+        pv.setTargetRotation(targetRotation)
+        return pv to vc
+    }
+
+    private fun makeCapture(hdOnly: Boolean, inside: Boolean): VideoCapture<Recorder> {
         val quality = if (hdOnly) {
             QualitySelector.from(Quality.HD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))
         } else {
             QualitySelector.from(Quality.FHD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))
         }
-        val vc = VideoCapture.withOutput(Recorder.Builder().setQualitySelector(quality).build())
-        val selector = ResolutionSelector.Builder()
-            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
-        if (hdOnly) {
-            selector.setResolutionStrategy(
-                ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
-            )
+        val recorder = Recorder.Builder()
+            .setQualitySelector(quality)
+            .setAspectRatio(if (inside) AspectRatio.RATIO_4_3 else AspectRatio.RATIO_16_9)
+            .build()
+        return VideoCapture.withOutput(recorder).also { it.setTargetRotation(targetRotation) }
+    }
+
+    private fun closeEffects() {
+        for (effect in listOf(overlayEffect, overlayEffect2)) {
+            try {
+                effect?.close()
+            } catch (e: Exception) {
+            }
         }
-        val pv = Preview.Builder().setResolutionSelector(selector.build()).build()
-        previewView?.let { pv.setSurfaceProvider(it.surfaceProvider) }
-        vc.setTargetRotation(targetRotation)
-        pv.setTargetRotation(targetRotation)
-        return pv to vc
+        overlayEffect = null
+        overlayEffect2 = null
     }
 
     private fun newOverlayEffect(targets: Int): OverlayEffect {
@@ -344,6 +369,7 @@ class DashcamController(
         if (mode == cameraMode) return
         cameraMode = mode
         stopLoop()
+        insideTrack = null
         videoCapture = null
         preview = null
         currentCamera = null
@@ -353,11 +379,7 @@ class DashcamController(
     /** Cierra la cámara y libera el hilo de los datos (al cerrar la app del todo). */
     fun release() {
         stopLoop()
-        try {
-            overlayEffect?.close()
-        } catch (e: Exception) {
-        }
-        overlayEffect = null
+        closeEffects()
         overlayThread.quitSafely()
     }
 
@@ -466,6 +488,7 @@ class DashcamController(
         trim()
         // Si aún se está cerrando el tramo anterior, el siguiente arrancará al terminar de cerrarse.
         if (recording == null) startSegment()
+        insideTrack?.start()
     }
 
     fun stopLoop() {
@@ -473,22 +496,29 @@ class DashcamController(
         nextSegmentEvent = null
         handler.removeCallbacksAndMessages(null)
         recording?.stop()
+        insideTrack?.stop()
     }
 
     /** Devuelve false si no se está grabando. */
     fun saveEvent(): Boolean {
         val current = currentFile
         if (!loopWanted || current == null) return false
-        val stamp = ClipStorage.stamp(System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val stamp = ClipStorage.stamp(now)
+        val elapsed = if (currentStart > 0) now - currentStart else SEGMENT_MS / 2
 
-        // Parte 1: el minuto anterior (ya está cerrado, se mueve ahora mismo).
-        lastFinished?.let { previous ->
-            if (storage.protect(previous, stamp, 1) != null) lastFinished = null
-        }
-        // Parte 2: el tramo que se está grabando ahora (se mueve al cerrarse).
+        // Siempre: el minuto que se está grabando ahora (se mueve al cerrarse).
         if (current !in pendingProtection) pendingProtection[current] = stamp to 2
-        // Parte 3: el siguiente tramo.
-        nextSegmentEvent = stamp
+        // En los primeros 20 s del minuto, lo que pasó está sobre todo en el anterior: también ese.
+        if (elapsed < EDGE_MS) {
+            lastFinished?.let { previous ->
+                if (storage.protect(previous, stamp, 1) != null) lastFinished = null
+            }
+        }
+        // En los últimos 20 s, lo que viene después cae en el siguiente: también ese.
+        if (elapsed > SEGMENT_MS - EDGE_MS) nextSegmentEvent = stamp
+        // Y lo mismo con el vídeo del interior, si se están grabando las dos cámaras.
+        insideTrack?.save(stamp)
         return true
     }
 
@@ -499,12 +529,9 @@ class DashcamController(
     @SuppressLint("MissingPermission") // se comprueba con hasAudioPermission()
     private fun startSegment() {
         val vc = videoCapture ?: return
-        // F = carretera (cámara trasera del móvil), I = interior (frontal), FI = las dos.
-        val camTag = when {
-            bothActive -> "FI"
-            useFrontCamera -> "I"
-            else -> "F"
-        }
+        // F = carretera (cámara trasera del móvil), I = interior (frontal).
+        // Con las dos cámaras, este es el de la carretera; el del interior lo lleva InsideTrack.
+        val camTag = if (useFrontCamera) "I" else "F"
         val file = storage.newSegmentFile(camTag)
         val options = FileOutputOptions.Builder(file)
             .setDurationLimitMillis(SEGMENT_MS)
@@ -584,12 +611,15 @@ class DashcamController(
     }
 
     private fun trim() {
-        val keep = setOfNotNull(currentFile, lastFinished) + pendingProtection.keys
+        val keep = setOfNotNull(currentFile, lastFinished) + pendingProtection.keys +
+            (insideTrack?.keepFiles ?: emptySet())
         storage.trimLoop(MAX_LOOP_BYTES, MIN_FREE_BYTES, keep)
     }
 
     companion object {
         const val SEGMENT_MS = 60_000L
+        /** Si se guarda en los primeros o últimos 20 s de un minuto, se guarda también el de al lado. */
+        private const val EDGE_MS = 20_000L
         /** Espacio máximo para el bucle: ~3 GB (unos 30 minutos en Full HD). */
         const val MAX_LOOP_BYTES = 3L * 1024 * 1024 * 1024
         /** Siempre dejamos al menos 500 MB libres en el móvil. */
@@ -598,13 +628,116 @@ class DashcamController(
         private const val RETRY_DELAY_MS = 1_500L
         private const val NO_EFFECT = 0
 
-        /** Ventanita del interior: 30 % del tamaño, centrada arriba (cielo), lejos de los datos de abajo. */
-        private const val INSIDE_WINDOW_SCALE = 0.3f
-        private const val INSIDE_WINDOW_Y = 0.65f
-
         /** Tramo que se está grabando ahora mismo (la pantalla Clips no lo enseña). */
         @Volatile
         var activeFile: File? = null
             private set
+
+        /** Tramo del interior que se está grabando ahora (modo de dos cámaras). */
+        @Volatile
+        var activeInsideFile: File? = null
+            private set
+
+        /** Todos los tramos que se están escribiendo ahora mismo. */
+        val activeFiles: Set<File> get() = setOfNotNull(activeFile, activeInsideFile)
+    }
+
+    /**
+     * Vídeo del interior cuando se graban las dos cámaras: va en su propio fichero (_I) y con su
+     * propio bucle de tramos de 1 minuto. Sin audio: el micrófono ya lo usa el vídeo de la carretera.
+     */
+    private inner class InsideTrack(private val vc: VideoCapture<Recorder>) {
+        private var recording: Recording? = null
+        private var currentFile: File? = null
+        private var lastFinished: File? = null
+        private var nextEvent: String? = null
+        private var running = false
+        private var failures = 0
+        private var startedAt = 0L
+
+        val keepFiles: Set<File> get() = setOfNotNull(currentFile, lastFinished)
+
+        fun start() {
+            if (running) return
+            running = true
+            failures = 0
+            if (recording == null) startSegment()
+        }
+
+        fun stop() {
+            running = false
+            nextEvent = null
+            recording?.stop()
+        }
+
+        fun save(stamp: String) {
+            val current = currentFile ?: return
+            val elapsed = if (startedAt > 0) System.currentTimeMillis() - startedAt else SEGMENT_MS / 2
+            if (current !in pendingProtection) pendingProtection[current] = stamp to 2
+            if (elapsed < EDGE_MS) {
+                lastFinished?.let { previous ->
+                    if (storage.protect(previous, stamp, 1) != null) lastFinished = null
+                }
+            }
+            if (elapsed > SEGMENT_MS - EDGE_MS) nextEvent = stamp
+        }
+
+        private fun startSegment() {
+            val file = storage.newSegmentFile("I")
+            val options = FileOutputOptions.Builder(file).setDurationLimitMillis(SEGMENT_MS).build()
+            nextEvent?.let { pendingProtection[file] = it to 3 }
+            nextEvent = null
+            try {
+                recording = vc.output.prepareRecording(context, options).start(executor) { event ->
+                    if (event is VideoRecordEvent.Finalize) onFinalized(file, event)
+                }
+                currentFile = file
+                startedAt = System.currentTimeMillis()
+                activeInsideFile = file
+            } catch (e: Exception) {
+                pendingProtection.remove(file)
+                running = false
+                listener.onDashcamInfo("No se ha podido grabar el interior: ${e.message}")
+            }
+        }
+
+        private fun onFinalized(file: File, event: VideoRecordEvent.Finalize) {
+            if (currentFile == file) {
+                currentFile = null
+                recording = null
+            }
+            if (activeInsideFile == file) activeInsideFile = null
+
+            val error = event.error
+            val ok = error == VideoRecordEvent.Finalize.ERROR_NONE ||
+                error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED
+            val hasData = file.exists() && file.length() > 0
+            if (!hasData) file.delete()
+
+            val pending = pendingProtection.remove(file)
+            if (hasData) {
+                if (pending != null) {
+                    storage.protect(file, pending.first, pending.second)
+                    if (lastFinished == file) lastFinished = null
+                } else {
+                    lastFinished = file
+                }
+            }
+            trim()
+
+            if (!running || insideTrack !== this) return
+            if (ok) {
+                failures = 0
+                startSegment()
+            } else {
+                failures++
+                if (failures >= MAX_FAILURES) {
+                    running = false
+                    listener.onDashcamInfo("El vídeo del interior ha dejado de grabarse (código $error)")
+                } else {
+                    handler.postDelayed({ if (running && recording == null) startSegment() }, RETRY_DELAY_MS)
+                }
+            }
+        }
     }
 }

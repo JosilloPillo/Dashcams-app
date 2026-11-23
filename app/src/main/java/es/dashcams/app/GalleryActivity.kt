@@ -57,8 +57,8 @@ class GalleryActivity : AppCompatActivity() {
 
     private fun refresh() {
         // El tramo que se está grabando ahora mismo no se enseña (aún no está terminado)
-        val recordingNow = DashcamController.activeFile
-        val list = if (showLoop) storage.loopSegments().filter { it != recordingNow }.reversed() else storage.savedClips()
+        val recordingNow = DashcamController.activeFiles
+        val list = if (showLoop) storage.loopSegments().filter { it !in recordingNow }.reversed() else storage.savedClips()
         adapter.submit(list, showLoop)
     }
 
@@ -289,10 +289,11 @@ object ClipNames {
     fun eventParts(file: File, saved: List<File>): List<File> {
         if (!isEvent(file)) return if (file.exists()) listOf(file) else emptyList()
         val key = stampOf(file) ?: return listOf(file)
-        return saved.filter { isEvent(it) && stampOf(it) == key }.sortedBy { part(it) ?: 0 }
+        return saved.filter { isEvent(it) && stampOf(it) == key }
+            .sortedWith(compareBy<File> { part(it) ?: 0 }.thenBy { cameraBadge(it) })
     }
 
-    /** "F" (carretera), "I" (interior), "FI" (las dos) o "" en clips de versiones antiguas. */
+    /** "F" (carretera), "I" (interior), "FI" (vídeo combinado de la 0.8) o "" en clips de versiones antiguas. */
     fun camera(file: File): String = camPattern.find(file.name)?.groupValues?.get(1) ?: ""
 
     /** Letra del círculo de la tarjeta. Los clips antiguos no la llevan: se asume la carretera. */
@@ -306,9 +307,9 @@ object ClipNames {
 
     fun subtitle(file: File): String {
         val part = when (part(file)) {
-            1 -> "Parte 1 de 3 · minuto anterior al aviso"
-            2 -> "Parte 2 de 3 · momento del aviso"
-            3 -> "Parte 3 de 3 · minuto posterior al aviso"
+            1 -> "Minuto anterior al aviso"
+            2 -> "Minuto del aviso"
+            3 -> "Minuto siguiente al aviso"
             else -> "Clip"
         }
         val mb = file.length() / (1024 * 1024)

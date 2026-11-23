@@ -26,10 +26,11 @@
     <string name="settings_background">Segundo plano</string>
     <string name="settings_background_switch">Seguir grabando si salgo de la app</string>
     <string name="settings_battery_button">Que el móvil no cierre la app</string>
+    <string name="settings_bubble_switch">Botón flotante para guardar desde otras apps</string>
     <string name="settings_camera">Cámara</string>
     <string name="settings_camera_road">Carretera (cámara trasera del móvil)</string>
     <string name="settings_camera_inside">Interior del coche (cámara frontal)</string>
-    <string name="settings_camera_both">Las dos a la vez (carretera + interior en pequeño)</string>
+    <string name="settings_camera_both">Las dos a la vez (dos vídeos: carretera e interior)</string>
     <string name="settings_icon">Icono de la app</string>
     <string name="settings_icon_note">Elige la bandera de tu comunidad para el icono del móvil.</string>
     <string name="icon_change_title">¿Cambiar el icono?</string>
@@ -54,7 +55,7 @@
     <string name="loop_empty">Todavía no hay grabación. Los tramos de 1 minuto aparecerán aquí mientras grabas.</string>
     <string name="keep">Guardar</string>
     <string name="send_kicker">Envía tu clip</string>
-    <string name="gallery_empty">Aún no has guardado ningún clip.\n\nMientras grabas, pulsa GUARDAR o una tecla de volumen y se guardará el minuto anterior, el actual y el siguiente.</string>
+    <string name="gallery_empty">Aún no has guardado ningún clip.\n\nMientras grabas, pulsa GUARDAR o una tecla de volumen y se guardará el minuto que se está grabando (y el de al lado si el aviso cae al principio o al final del minuto).</string>
     <string name="play">Ver</string>
     <string name="share">Compartir</string>
     <string name="delete">Borrar</string>

@@ -18,6 +18,10 @@
 
     <!-- Seguir grabando con la app en segundo plano -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 13+: sin este permiso no se ve la notificación con «Guardar clip» -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Botón flotante para guardar clips desde otras apps -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />

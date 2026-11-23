@@ -66,7 +66,7 @@ class RecordingService : Service() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_rec)
             .setContentTitle("Dashcams España está grabando")
-            .setContentText("Toca para volver a la app")
+            .setContentText("Toca para volver a la app · «Guardar clip» guarda lo que acaba de pasar")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
@@ -87,9 +87,19 @@ class RecordingService : Service() {
 
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, types)
+            isForeground = true
+            lastError = null
         } catch (e: Exception) {
+            isForeground = false
+            lastError = e.message ?: e.javaClass.simpleName
             stopSelf()
         }
+    }
+
+    override fun onDestroy() {
+        isForeground = false
+        FloatingButton.hide(this)
+        super.onDestroy()
     }
 
     private fun granted(permission: String) =
@@ -103,6 +113,16 @@ class RecordingService : Service() {
         /** La pantalla principal se apunta aquí para recibir el "Guardar clip" de la notificación. */
         @Volatile
         var controls: Controls? = null
+
+        /** true cuando Android ha aceptado el servicio: solo entonces se puede grabar con la app fuera. */
+        @Volatile
+        var isForeground = false
+            private set
+
+        /** Por qué Android no ha dejado arrancar el servicio la última vez (para enseñarlo en Ajustes). */
+        @Volatile
+        var lastError: String? = null
+            private set
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, RecordingService::class.java))

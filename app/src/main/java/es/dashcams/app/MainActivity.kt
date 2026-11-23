@@ -11,6 +11,7 @@ import android.media.AudioAttributes
 import android.media.SoundPool
 import android.net.Uri
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -74,6 +75,11 @@ class MainActivity : AppCompatActivity(),
     private var fitPreview = false
     private var voiceOn = false
     private var keepInBackground = true
+    /** Se ha abierto otra pantalla de la propia app (Clips): no hay que parar de grabar. */
+    private var inAppScreen = false
+    /** Al salir, Android no dejó seguir grabando en segundo plano: se avisa al volver. */
+    private var backgroundFailed = false
+    private var bubbleOn = true
 
     private var batteryTemp = -1f
     private var batteryLevel = -1
@@ -185,6 +191,7 @@ class MainActivity : AppCompatActivity(),
         voiceOn = prefs.getBoolean(KEY_VOICE, false)
         voice.phrase = VoiceCommand.Phrase.fromName(prefs.getString(KEY_PHRASE, null))
         keepInBackground = prefs.getBoolean(KEY_BACKGROUND, true)
+        bubbleOn = prefs.getBoolean(KEY_BUBBLE, true)
         Telemetry.showSpeed = prefs.getBoolean(KEY_OVERLAY_SPEED, true)
         Telemetry.showCoords = prefs.getBoolean(KEY_OVERLAY_COORDS, true)
         applyPreviewScale()
@@ -199,6 +206,8 @@ class MainActivity : AppCompatActivity(),
         binding.btnStartStop.setOnClickListener { toggleRecording() }
         binding.btnSettings.setOnClickListener { openSettings() }
         binding.btnClips.setOnClickListener {
+            // Ir a Clips no para la grabación: sigue siendo la app.
+            inAppScreen = true
             startActivity(Intent(this, GalleryActivity::class.java))
         }
         binding.btnDark.setOnClickListener { setDarkMode(true) }
@@ -221,6 +230,13 @@ class MainActivity : AppCompatActivity(),
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
                 add(Manifest.permission.ACCESS_COARSE_LOCATION)
             }
+            // Android 13+: sin este permiso no sale la notificación con «Guardar clip»
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
         if (hasCameraPermission()) startCameraOnce()
         if (missing.isNotEmpty()) requestPermissions.launch(missing.toTypedArray())
@@ -235,6 +251,18 @@ class MainActivity : AppCompatActivity(),
 
     override fun onStart() {
         super.onStart()
+        inAppScreen = false
+        FloatingButton.hide(this)
+        if (backgroundFailed) {
+            backgroundFailed = false
+            Toast.makeText(
+                this,
+                "Android no ha dejado seguir grabando con la app fuera" +
+                    (RecordingService.lastError?.let { ": $it" } ?: ". Mira Ajustes > Segundo plano."),
+                Toast.LENGTH_LONG
+            ).show()
+        }
+        settings?.let { refreshSettings(it) } // p. ej. al volver de dar el permiso del botón flotante
         if (cameraStarted) cameraLifecycle.resume()
         dashcam.attachPreview(binding.previewView)
         getSystemService(DisplayManager::class.java)?.registerDisplayListener(displayListener, ui)
@@ -250,9 +278,14 @@ class MainActivity : AppCompatActivity(),
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
         dashcam.detachPreview()
 
-        if (keepInBackground && sessionActive() && serviceRunning) {
-            // Sigue grabando con la app en segundo plano (hay notificación fija).
+        val inBackgroundOk = keepInBackground && sessionActive() && RecordingService.isForeground
+        if (inAppScreen && sessionActive()) {
+            // Se ha abierto Clips: la app sigue a la vista, se sigue grabando.
+        } else if (inBackgroundOk) {
+            // Sigue grabando con la app en segundo plano (hay notificación fija y, si se quiere, botón flotante).
+            if (bubbleOn) FloatingButton.show(this)
         } else {
+            if (keepInBackground && sessionActive()) backgroundFailed = true
             // Sin segundo plano: paramos y, al volver, seguimos grabando solos.
             if (dashcam.isLoopRunning) resumeOnStart = true
             dashcam.stopLoop()
@@ -272,6 +305,7 @@ class MainActivity : AppCompatActivity(),
         } catch (e: Exception) {
         }
         if (RecordingService.controls === this) RecordingService.controls = null
+        FloatingButton.hide(this)
         dashcam.release()
         voice.release()
         location.stop()
@@ -485,6 +519,15 @@ class MainActivity : AppCompatActivity(),
             refreshSettings(s)
         }
         s.btnBattery.setOnClickListener { openBatterySettings() }
+        s.switchBubble.setOnCheckedChangeListener { _, on ->
+            bubbleOn = on
+            prefs.edit().putBoolean(KEY_BUBBLE, on).apply()
+            if (on && !FloatingButton.canShow(this)) openOverlaySettings()
+            refreshSettings(s)
+        }
+        s.bubbleNote.setOnClickListener {
+            if (bubbleOn && !FloatingButton.canShow(this)) openOverlaySettings()
+        }
 
         s.cameraGroup.setOnCheckedChangeListener { _, checkedId ->
             val mode = when (checkedId) {
@@ -567,6 +610,17 @@ class MainActivity : AppCompatActivity(),
             unrestricted -> "Si sales de la app sigue grabando (verás una notificación con «Guardar clip»). Al pulsar Atrás se para."
             else -> "Si sales de la app sigue grabando, con una notificación con «Guardar clip». Algunos móviles (Xiaomi, Huawei, Oppo…) cierran las apps para ahorrar batería: pulsa el botón de abajo y quita la restricción a Dashcams España."
         }
+        RecordingService.lastError?.let { err ->
+            if (keepInBackground) s.backgroundNote.append("\nÚltimo fallo al salir de la app: $err")
+        }
+        s.switchBubble.isChecked = bubbleOn
+        s.switchBubble.isEnabled = keepInBackground
+        s.bubbleNote.text = when {
+            !keepInBackground -> "Necesita que la grabación siga en segundo plano."
+            !bubbleOn -> "Al salir de la app no aparecerá el botón flotante."
+            !FloatingButton.canShow(this) -> "Falta el permiso «Mostrar sobre otras apps». Toca aquí para darlo."
+            else -> "Al salir de la app aparece el escudo flotante: tócalo para guardar un clip, mantenlo pulsado para volver a la app y arrástralo para moverlo."
+        }
         s.btnBattery.isVisible = !unrestricted
 
         s.radioBoth.isEnabled = dashcam.supportsBothCameras || dashcam.cameraMode == DashcamController.CameraMode.BOTH
@@ -574,13 +628,13 @@ class MainActivity : AppCompatActivity(),
         checkCameraRadio(s)
         s.bothNote.text = when {
             dashcam.bothActive ->
-                "Grabando las dos a la vez en un solo vídeo: la carretera de fondo y el interior en una ventanita. Gasta más batería y calienta más el móvil."
+                "Grabando las dos a la vez en dos vídeos separados: uno de la carretera (F) y otro del interior (I), a 720p. Gasta más batería, calienta más el móvil y el bucle guarda la mitad de minutos."
             dashcam.cameraMode == DashcamController.CameraMode.BOTH ->
                 "Has elegido las dos a la vez, pero el móvil no ha podido abrirlas juntas: se está grabando solo la carretera." +
                     (dashcam.bothProblem?.let { "\nMotivo: $it" } ?: "")
             dashcam.supportsBothCameras ->
-                "Tu móvil puede usar las dos cámaras a la vez: la carretera de fondo y el interior en una ventanita, en el mismo vídeo."
-            else -> "Tu móvil no permite usar las dos cámaras a la vez: se graba una u otra."
+                "Tu móvil puede usar las dos cámaras a la vez: graba la carretera y el interior en dos vídeos separados."
+            else -> "Tu móvil no deja a otras apps abrir las dos cámaras a la vez (aunque su propia app de cámara sí pueda): se graba una u otra."
         }
 
         s.switchVoice.isChecked = voiceOn
@@ -613,6 +667,21 @@ class MainActivity : AppCompatActivity(),
     }
 
     /** Abre la lista de optimización de batería del móvil; si no existe, la guía de dontkillmyapp.com. */
+    /** Pantalla de Android para dar el permiso "Mostrar sobre otras apps". */
+    private fun openOverlaySettings() {
+        Toast.makeText(this, "Activa «Mostrar sobre otras apps» para Dashcams España", Toast.LENGTH_LONG).show()
+        try {
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            )
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+            } catch (ignored: Exception) {
+            }
+        }
+    }
+
     private fun openBatterySettings() {
         Toast.makeText(
             this,
@@ -889,6 +958,7 @@ class MainActivity : AppCompatActivity(),
         private const val KEY_VOICE = "voz"
         private const val KEY_PHRASE = "frase_voz"
         private const val KEY_BACKGROUND = "segundo_plano"
+        private const val KEY_BUBBLE = "boton_flotante"
         private const val KEY_OVERLAY_SPEED = "datos_velocidad"
         private const val KEY_OVERLAY_COORDS = "datos_coordenadas"
 
