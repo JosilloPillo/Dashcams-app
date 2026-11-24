@@ -26,6 +26,17 @@ class ClipStorage(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences("ajustes", Context.MODE_PRIVATE)
 
+    /** Espacio máximo para la grabación normal (se elige en Ajustes; 3 GB de serie). */
+    fun loopLimitBytes(): Long = prefs.getInt(KEY_LIMIT_GB, 3).toLong() * GB
+
+    fun setLoopLimitGb(gb: Int) {
+        prefs.edit().putInt(KEY_LIMIT_GB, gb).apply()
+    }
+
+    fun loopLimitGb(): Int = prefs.getInt(KEY_LIMIT_GB, 3)
+
+    fun loopUsedBytes(): Long = loopSegments().sumOf { it.length() }
+
     /** Siguiente número de grabación: 0001 … 9999 y vuelta a empezar. */
     @Synchronized
     fun nextSeq(): Int {
@@ -116,6 +127,11 @@ class ClipStorage(context: Context) {
          */
         const val STAMP_FORMAT = "yyyy-MM-dd_HH-mm-ss"
         private const val KEY_SEQ = "numero_grabacion"
+        private const val KEY_LIMIT_GB = "limite_bucle_gb"
+        const val GB = 1024L * 1024 * 1024
+
+        /** Opciones de Ajustes, en GB. */
+        val LIMIT_OPTIONS = listOf(3, 8, 16, 32, 64)
 
         fun stamp(millis: Long): String =
             SimpleDateFormat(STAMP_FORMAT, Locale.US).format(Date(millis))

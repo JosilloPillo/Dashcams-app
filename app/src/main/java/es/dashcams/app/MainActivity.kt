@@ -21,6 +21,7 @@ import android.graphics.Color
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -186,6 +187,7 @@ class MainActivity : AppCompatActivity(),
         setContentView(binding.root)
         showLastCrash()
         roundInsidePreview()
+        setupInsideDrag()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
@@ -539,6 +541,7 @@ class MainActivity : AppCompatActivity(),
             refreshSettings(s)
         }
         s.btnBattery.setOnClickListener { openBatterySettings() }
+        s.btnLimit.setOnClickListener { chooseLoopLimit(s) }
         s.switchBubble.setOnCheckedChangeListener { _, on ->
             bubbleOn = on
             prefs.edit().putBoolean(KEY_BUBBLE, on).apply()
@@ -633,6 +636,12 @@ class MainActivity : AppCompatActivity(),
         RecordingService.lastError?.let { err ->
             if (keepInBackground) s.backgroundNote.append("\nÚltimo fallo al salir de la app: $err")
         }
+        val store = ClipStorage(this)
+        val gbText = { b: Long -> String.format(java.util.Locale("es", "ES"), "%.1f", b / ClipStorage.GB.toDouble()) }
+        val limitGb = store.loopLimitGb()
+        s.btnLimit.text = "Espacio para la grabación normal: $limitGb GB"
+        s.limitNote.text = "Ahora ocupa ${gbText(store.loopUsedBytes())} GB y quedan ${gbText(store.freeBytes())} GB libres en el móvil. " +
+            "Más o menos ${limitGb * 7} minutos de grabación en Full HD. Los eventos no cuentan y no se borran nunca."
         s.switchBubble.isChecked = bubbleOn
         s.switchBubble.isEnabled = keepInBackground
         s.bubbleNote.text = when {
@@ -648,7 +657,7 @@ class MainActivity : AppCompatActivity(),
         checkCameraRadio(s)
         s.bothNote.text = when {
             dashcam.bothActive ->
-                "Grabando las dos a la vez en dos vídeos separados: uno de la carretera (F) y otro del interior (I), a 720p. Gasta más batería, calienta más el móvil y el bucle guarda la mitad de minutos."
+                "Grabando las dos a la vez en dos vídeos separados: uno de la carretera (F) y otro del interior (I), a 720p. Gasta más batería y calienta más el móvil. La ventanita del interior se puede arrastrar a cualquier esquina."
             dashcam.cameraMode == DashcamController.CameraMode.BOTH ->
                 "Has elegido las dos a la vez, pero el móvil no ha podido abrirlas juntas: se está grabando solo la carretera." +
                     (dashcam.bothProblem?.let { "\nMotivo: $it" } ?: "")
@@ -700,6 +709,93 @@ class MainActivity : AppCompatActivity(),
         }
         round(binding.insideFrame, 10 * dp)
         round(binding.insidePreview, 8 * dp)
+    }
+
+    /**
+     * La ventanita del interior se arrastra con el dedo y, al soltarla, se coloca en la esquina más
+     * cercana. Se recuerda la esquina elegida.
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun setupInsideDrag() {
+        val frame = binding.insideFrame
+        placeInside(prefs.getInt(KEY_INSIDE_CORNER, 1), animate = false)
+        var downX = 0f
+        var downY = 0f
+        frame.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX - v.translationX
+                    downY = e.rawY - v.translationY
+                    v.animate().scaleX(1.05f).scaleY(1.05f).setDuration(80).start()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    v.translationX = e.rawX - downX
+                    v.translationY = e.rawY - downY
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val parent = v.parent as View
+                    val cx = v.x + v.width / 2f
+                    val cy = v.y + v.height / 2f
+                    val right = cx > parent.width / 2f
+                    val bottom = cy > parent.height / 2f
+                    val corner = (if (bottom) 2 else 0) + (if (right) 1 else 0)
+                    prefs.edit().putInt(KEY_INSIDE_CORNER, corner).apply()
+                    placeInside(corner, animate = true)
+                }
+            }
+            true
+        }
+    }
+
+    /** 0 arriba izquierda · 1 arriba derecha · 2 abajo izquierda · 3 abajo derecha. */
+    private fun placeInside(corner: Int, animate: Boolean) {
+        val frame = binding.insideFrame
+        val dp = resources.displayMetrics.density
+        val oldX = frame.x
+        val oldY = frame.y
+        val lp = frame.layoutParams as android.widget.FrameLayout.LayoutParams
+        val bottom = corner >= 2
+        val right = corner % 2 == 1
+        lp.gravity = (if (bottom) Gravity.BOTTOM else Gravity.TOP) or (if (right) Gravity.END else Gravity.START)
+        // Lejos de la barra de arriba y de los botones de abajo
+        lp.topMargin = if (bottom) 0 else (64 * dp).toInt()
+        lp.bottomMargin = if (bottom) (112 * dp).toInt() else 0
+        lp.marginStart = (16 * dp).toInt()
+        lp.marginEnd = (16 * dp).toInt()
+        frame.layoutParams = lp
+        frame.translationX = 0f
+        frame.translationY = 0f
+        if (!animate) {
+            frame.scaleX = 1f
+            frame.scaleY = 1f
+            return
+        }
+        // Que se deslice desde donde se soltó hasta la esquina
+        frame.post {
+            frame.translationX = oldX - frame.x
+            frame.translationY = oldY - frame.y
+            frame.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f)
+                .setDuration(220).setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        }
+    }
+
+    /** Cuánto puede ocupar la grabación normal antes de que se borren los minutos más viejos. */
+    private fun chooseLoopLimit(s: SheetSettingsBinding) {
+        val store = ClipStorage(this)
+        // Solo se ofrece lo que cabe: lo ya grabado + lo libre, dejando 2 GB al móvil.
+        val room = store.loopUsedBytes() + store.freeBytes() - 2 * ClipStorage.GB
+        val options = ClipStorage.LIMIT_OPTIONS.filter { it == 3 || it * ClipStorage.GB <= room }
+        val labels = options.map { "$it GB · unos ${it * 7} min en Full HD" }.toTypedArray()
+        val current = options.indexOf(store.loopLimitGb()).coerceAtLeast(0)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Espacio para la grabación normal")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                store.setLoopLimitGb(options[which])
+                refreshSettings(s)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     /** Si la app se cerró por un fallo la última vez, lo enseña para poder copiarlo y mandarlo. */
@@ -1010,6 +1106,7 @@ class MainActivity : AppCompatActivity(),
         private const val KEY_PHRASE = "frase_voz"
         private const val KEY_BACKGROUND = "segundo_plano"
         private const val KEY_BUBBLE = "boton_flotante"
+        private const val KEY_INSIDE_CORNER = "esquina_interior"
         private const val KEY_OVERLAY_SPEED = "datos_velocidad"
         private const val KEY_OVERLAY_COORDS = "datos_coordenadas"
 

@@ -61,6 +61,21 @@
             android:layout_height="wrap_content"
             android:text="@string/settings_fit_note" />
 
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnLimit"
+            style="@style/Dashcams.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_tab"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/limitNote"
+            style="@style/Dashcams.SettingsNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
         <!-- ===== Datos dentro del vídeo ===== -->
         <TextView
             style="@style/Dashcams.SettingsSection"

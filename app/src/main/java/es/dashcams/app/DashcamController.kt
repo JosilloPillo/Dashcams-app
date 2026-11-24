@@ -721,7 +721,7 @@ class DashcamController(
     private fun trim() {
         val keep = setOfNotNull(currentFile, lastFinished) + pendingProtection.keys +
             (insideTrack?.keepFiles ?: emptySet())
-        storage.trimLoop(MAX_LOOP_BYTES, MIN_FREE_BYTES, keep)
+        storage.trimLoop(storage.loopLimitBytes(), MIN_FREE_BYTES, keep)
     }
 
     companion object {
@@ -730,8 +730,6 @@ class DashcamController(
         private const val KEY_BOTH_CRASHES = "doble_cierres"
         /** Si se guarda en los primeros o últimos 20 s de un minuto, se guarda también el de al lado. */
         private const val EDGE_MS = 20_000L
-        /** Espacio máximo para el bucle: ~3 GB (unos 30 minutos en Full HD). */
-        const val MAX_LOOP_BYTES = 3L * 1024 * 1024 * 1024
         /** Siempre dejamos al menos 500 MB libres en el móvil. */
         const val MIN_FREE_BYTES = 500L * 1024 * 1024
         private const val MAX_FAILURES = 3
