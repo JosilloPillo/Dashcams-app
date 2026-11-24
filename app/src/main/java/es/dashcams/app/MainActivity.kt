@@ -77,6 +77,8 @@ class MainActivity : AppCompatActivity(),
     private var keepInBackground = true
     /** Se ha abierto otra pantalla de la propia app (Clips): no hay que parar de grabar. */
     private var inAppScreen = false
+    /** La pantalla ha estado tapada (Clips, otra app…): al volver se revisan las dos cámaras. */
+    private var wasStopped = false
     /** Al salir, Android no dejó seguir grabando en segundo plano: se avisa al volver. */
     private var backgroundFailed = false
     private var bubbleOn = false
@@ -137,6 +139,12 @@ class MainActivity : AppCompatActivity(),
             batteryLevel = if (level >= 0 && scale > 0) level * 100 / scale else -1
             charging = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
             checkHeat()
+            // Con la batería a punto de agotarse se cierra el vídeo a tiempo: si el móvil se apaga
+            // con el vídeo abierto, ese minuto no se puede reproducir.
+            if (!charging && batteryLevel in 0..2 && dashcam.isLoopRunning) {
+                dashcam.stopLoop()
+                Toast.makeText(context, "Batería casi agotada: grabación parada para no perder el vídeo", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -173,6 +181,7 @@ class MainActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(this)
+        CrashLog.beforeCrash = { if (::dashcam.isInitialized) dashcam.stopLoop() }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         showLastCrash()
@@ -267,6 +276,8 @@ class MainActivity : AppCompatActivity(),
         settings?.let { refreshSettings(it) } // p. ej. al volver de dar el permiso del botón flotante
         if (cameraStarted) cameraLifecycle.resume()
         dashcam.attachPreview(binding.previewView, binding.insidePreview)
+        if (cameraStarted && wasStopped) dashcam.reopenIfBoth()
+        wasStopped = false
         getSystemService(DisplayManager::class.java)?.registerDisplayListener(displayListener, ui)
 
         if (resumeOnStart && dashcam.isCameraReady && !pausedForHeat) {
@@ -277,6 +288,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onStop() {
+        wasStopped = true
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
         dashcam.detachPreview()
 
@@ -353,6 +365,11 @@ class MainActivity : AppCompatActivity(),
     /** Botón "Guardar clip" de la notificación. */
     override fun onSaveRequested() {
         saveEvent()
+    }
+
+    override fun onShutdownRequested() {
+        // Se cierra el vídeo que se está grabando para que lo grabado hasta ahora se pueda ver.
+        ui.post { if (dashcam.isLoopRunning) dashcam.stopLoop() }
     }
 
     // ---- DashcamController.Listener ----

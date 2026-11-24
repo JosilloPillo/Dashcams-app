@@ -28,6 +28,32 @@ class RecordingService : Service() {
     /** Lo que la notificación puede pedir a la app. */
     interface Controls {
         fun onSaveRequested()
+
+        /** El móvil se va a apagar o han quitado la app de recientes: hay que cerrar bien el vídeo. */
+        fun onShutdownRequested()
+    }
+
+    private val shutdownReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            controls?.onShutdownRequested()
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        try {
+            val filter = android.content.IntentFilter(Intent.ACTION_SHUTDOWN)
+            androidx.core.content.ContextCompat.registerReceiver(
+                this, shutdownReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_EXPORTED
+            )
+        } catch (ignored: Exception) {
+        }
+    }
+
+    /** Han quitado la app de la lista de recientes con la grabación en segundo plano. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        controls?.onShutdownRequested()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -97,6 +123,10 @@ class RecordingService : Service() {
     }
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(shutdownReceiver)
+        } catch (ignored: Exception) {
+        }
         isForeground = false
         FloatingButton.hide(this)
         super.onDestroy()

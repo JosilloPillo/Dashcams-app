@@ -13,6 +13,10 @@ import java.io.StringWriter
 object CrashLog {
     private const val FILE = "ultimo_fallo.txt"
 
+    /** Se llama justo antes de cerrarse por un fallo: intenta cerrar bien el vídeo que se graba. */
+    @Volatile
+    var beforeCrash: (() -> Unit)? = null
+
     fun install(context: Context) {
         val app = context.applicationContext
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -46,6 +50,11 @@ object CrashLog {
                 }
                 File(context.filesDir, FILE).writeText(text)
             } catch (ignored: Exception) {
+            }
+            try {
+                beforeCrash?.invoke()
+                Thread.sleep(700) // un momento para que el vídeo se cierre
+            } catch (ignored: Throwable) {
             }
             previous?.uncaughtException(t, e)
         }

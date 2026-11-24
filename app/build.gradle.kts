@@ -11,8 +11,8 @@ android {
         applicationId = "es.dashcams.app"
         minSdk = 26 // Android 8: la idea es usar móviles viejos
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.9.6"
+        versionCode = 21
+        versionName = "0.9.7"
 
         // Librerías nativas del control por voz: solo móviles ARM y el emulador del PC (x86_64)
         ndk {

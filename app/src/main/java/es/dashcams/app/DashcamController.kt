@@ -443,6 +443,20 @@ class DashcamController(
         startCamera()
     }
 
+    /**
+     * Al volver a la pantalla con las dos cámaras, Android no devuelve la imagen a las vistas previas
+     * (se quedan en negro): se vuelven a abrir. Supone un corte de 1-2 s en el vídeo.
+     */
+    fun reopenIfBoth() {
+        if (!bothActive) return
+        stopLoop()
+        insideTrack = null
+        videoCapture = null
+        preview = null
+        currentCamera = null
+        startCamera()
+    }
+
     /** Cierra la cámara y libera el hilo de los datos (al cerrar la app del todo). */
     fun release() {
         // Cerrar la app con normalidad no cuenta como cierre por fallo.
