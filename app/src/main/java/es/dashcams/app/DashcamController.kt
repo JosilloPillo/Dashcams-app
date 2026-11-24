@@ -69,6 +69,13 @@ class DashcamController(
     private val overlayThread = HandlerThread("datos-en-video").apply { start() }
     private val overlayHandler = Handler(overlayThread.looper)
     private val renderer = OverlayRenderer(context)
+
+    // El vídeo del interior (modo doble) dibuja sus datos en su propio hilo y con su propio dibujante.
+    // Compartir hilo entre los dos vídeos hacía que la app se cerrara ("Unable to update texture contents"):
+    // cada efecto tiene su propio contexto de OpenGL y no pueden turnarse en el mismo hilo.
+    private val insideThread = HandlerThread("datos-en-video-interior").apply { start() }
+    private val insideHandler = Handler(insideThread.looper)
+    private val insideRenderer = OverlayRenderer(context)
     private var overlayEffect: OverlayEffect? = null
     private val guard = context.getSharedPreferences("ajustes", Context.MODE_PRIVATE)
     /** Efecto del vídeo del interior cuando se graban las dos cámaras. */
@@ -248,7 +255,9 @@ class DashcamController(
                                 val insideGroup = UseCaseGroup.Builder().addUseCase(insidePv).addUseCase(insideVc)
                                 if (withData) {
                                     roadEffect = newOverlayEffect(CameraEffect.VIDEO_CAPTURE)
-                                    insideEffect = newOverlayEffect(CameraEffect.VIDEO_CAPTURE)
+                                    insideEffect = newOverlayEffect(
+                                        CameraEffect.VIDEO_CAPTURE, insideHandler, insideRenderer
+                                    )
                                     roadGroup.addEffect(roadEffect)
                                     insideGroup.addEffect(insideEffect)
                                 }
@@ -403,11 +412,15 @@ class DashcamController(
         overlayEffect2 = null
     }
 
-    private fun newOverlayEffect(targets: Int): OverlayEffect {
-        val effect = OverlayEffect(targets, 0, overlayHandler) { error ->
+    private fun newOverlayEffect(
+        targets: Int,
+        onHandler: Handler = overlayHandler,
+        drawer: OverlayRenderer = renderer
+    ): OverlayEffect {
+        val effect = OverlayEffect(targets, 0, onHandler) { error ->
             handler.post { listener.onDashcamInfo("Fallo al dibujar los datos en el vídeo: ${error.message}") }
         }
-        effect.setOnDrawListener { frame -> renderer.draw(frame) }
+        effect.setOnDrawListener { frame -> drawer.draw(frame) }
         return effect
     }
 
@@ -437,6 +450,7 @@ class DashcamController(
         stopLoop()
         closeEffects()
         overlayThread.quitSafely()
+        insideThread.quitSafely()
     }
 
     /**
