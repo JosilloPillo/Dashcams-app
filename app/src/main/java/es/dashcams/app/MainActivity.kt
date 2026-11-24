@@ -470,7 +470,7 @@ class MainActivity : AppCompatActivity(),
         if (dashcam.isLoopRunning) {
             pausedForHeat = false
             userStopped = true
-            dashcam.stopLoop()
+            dashcam.stopLoop(report = true)
         } else if (batteryTemp >= HEAT_STOP_C) {
             Toast.makeText(this, "El móvil está demasiado caliente para grabar", Toast.LENGTH_LONG).show()
         } else {

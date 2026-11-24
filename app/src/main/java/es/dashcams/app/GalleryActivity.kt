@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import es.dashcams.app.databinding.ActivityGalleryBinding
 import es.dashcams.app.databinding.ItemClipBinding
+import es.dashcams.app.databinding.ItemEventGroupBinding
 import es.dashcams.app.databinding.ItemGalleryHeaderBinding
 import java.io.File
 import java.text.SimpleDateFormat
@@ -137,35 +138,45 @@ class ClipAdapter(
     private val onTab: (Boolean) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    private var items: List<File> = emptyList()
+    /** Filas de la lista: un [File] por clip y, en Eventos, un [String] con la cabecera de cada evento. */
+    private var items: List<Any> = emptyList()
     private var loop = false
     private val animated = mutableSetOf<String>()
 
     class HeaderHolder(val binding: ItemGalleryHeaderBinding) : RecyclerView.ViewHolder(binding.root)
     class ClipHolder(val binding: ItemClipBinding) : RecyclerView.ViewHolder(binding.root)
+    class GroupHolder(val binding: ItemEventGroupBinding) : RecyclerView.ViewHolder(binding.root)
 
     @android.annotation.SuppressLint("NotifyDataSetChanged")
     fun submit(list: List<File>, showingLoop: Boolean) {
-        items = list
+        items = if (showingLoop) list else ClipNames.eventGroups(list).flatMap { listOf(ClipNames.groupTitle(it)) + it }
         loop = showingLoop
         notifyDataSetChanged()
     }
 
-    override fun getItemViewType(position: Int): Int = if (position == 0) TYPE_HEADER else TYPE_CLIP
+    override fun getItemViewType(position: Int): Int = when {
+        position == 0 -> TYPE_HEADER
+        items[position - 1] is String -> TYPE_GROUP
+        else -> TYPE_CLIP
+    }
 
     override fun getItemCount(): Int = items.size + 1
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
-        return if (viewType == TYPE_HEADER) {
-            HeaderHolder(ItemGalleryHeaderBinding.inflate(inflater, parent, false))
-        } else {
-            ClipHolder(ItemClipBinding.inflate(inflater, parent, false))
+        return when (viewType) {
+            TYPE_HEADER -> HeaderHolder(ItemGalleryHeaderBinding.inflate(inflater, parent, false))
+            TYPE_GROUP -> GroupHolder(ItemEventGroupBinding.inflate(inflater, parent, false))
+            else -> ClipHolder(ItemClipBinding.inflate(inflater, parent, false))
         }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        if (holder is HeaderHolder) bindHeader(holder.binding) else bindClip((holder as ClipHolder).binding, position)
+        when (holder) {
+            is HeaderHolder -> bindHeader(holder.binding)
+            is GroupHolder -> holder.binding.groupTitle.text = items[position - 1] as String
+            is ClipHolder -> bindClip(holder.binding, position)
+        }
     }
 
     private fun bindHeader(b: ItemGalleryHeaderBinding) {
@@ -201,7 +212,7 @@ class ClipAdapter(
 
     private fun bindClip(b: ItemClipBinding, position: Int) {
         val ctx = b.root.context
-        val file = items[position - 1]
+        val file = items[position - 1] as File
         b.title.text = ClipNames.title(file)
         b.btnPlay.setOnClickListener { onPlay(file) }
         b.btnShare.setOnClickListener { onShare(file) }
@@ -236,23 +247,34 @@ class ClipAdapter(
     companion object {
         private const val TYPE_HEADER = 0
         private const val TYPE_CLIP = 1
+        private const val TYPE_GROUP = 2
     }
 }
 
 /**
  * Lee los nombres de los vídeos y los convierte en textos legibles.
- * Nombres actuales:  dashcams.es_23-11-2026_13-15-00_F.mp4 · dashcams.es_evento_23-11-2026_13-15-00_parte1_F.mp4
- * Nombres antiguos:  tramo_20261118_210412.mp4 · evento_20261118_210412_parte2.mp4 (se siguen entendiendo)
+ * Nombre actual:   dashcams.es_2026-11-24_22-07-15_0008_N_F.mp4 (E en vez de N si es un evento)
+ * Nombres antiguos (se siguen entendiendo): dashcams.es_23-11-2026_13-15-00_F.mp4,
+ *   dashcams.es_evento_23-11-2026_13-15-00_parte1_F.mp4, tramo_20261118_210412.mp4, evento_20261118_210412_parte2.mp4
  */
 object ClipNames {
-    private val newStamp = Regex("""(\d{2})-(\d{2})-(\d{4})_(\d{2})-(\d{2})-(\d{2})""")
+    private val isoStamp = Regex("""(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})""")
+    private val dmyStamp = Regex("""(\d{2})-(\d{2})-(\d{4})_(\d{2})-(\d{2})-(\d{2})""")
     private val oldStamp = Regex("""(?:evento|tramo)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})""")
     private val partRe = Regex("""_parte(\d)""")
+    private val seqRe = Regex("""_(\d{4})_([NE])_""")
     private val camPattern = Regex("""_(F|I|FI)\.mp4$""")
+
+    /** Clips guardados a menos de esto unos de otros cuentan como el mismo evento. */
+    private const val SAME_EVENT_MS = 75_000L
 
     /** [día, mes, año, hora, minuto, segundo] del nombre, o null si no se entiende. */
     private fun fields(file: File): List<String>? {
-        newStamp.find(file.name)?.let { return it.groupValues.drop(1) }
+        isoStamp.find(file.name)?.let { m ->
+            val g = m.groupValues
+            return listOf(g[3], g[2], g[1], g[4], g[5], g[6])
+        }
+        dmyStamp.find(file.name)?.let { return it.groupValues.drop(1) }
         oldStamp.find(file.name)?.let { m ->
             val g = m.groupValues
             return listOf(g[3], g[2], g[1], g[4], g[5], g[6])
@@ -265,11 +287,11 @@ object ClipNames {
         return "${f[0]}/${f[1]}/${f[2]} · ${f[3]}:${f[4]}:${f[5]}"
     }
 
-    /** "23-11-2026_13-15-00" a partir del nombre del fichero. */
+    /** "2026-11-24_22-07-15" a partir del nombre del fichero. */
     fun stampOf(file: File): String? =
-        fields(file)?.let { "${it[0]}-${it[1]}-${it[2]}_${it[3]}-${it[4]}-${it[5]}" }
+        fields(file)?.let { "${it[2]}-${it[1]}-${it[0]}_${it[3]}-${it[4]}-${it[5]}" }
 
-    /** Momento del clip (o del evento) para ordenar. */
+    /** Momento del clip (o del evento, en los nombres antiguos) para ordenar. */
     fun timeOf(file: File): Long {
         val stamp = stampOf(file) ?: return file.lastModified()
         return try {
@@ -279,18 +301,39 @@ object ClipNames {
         }
     }
 
-    fun isEvent(file: File): Boolean = file.name.contains("evento_")
+    /** Número de grabación (0008), o null en nombres antiguos. */
+    fun seqOf(file: File): String? = seqRe.find(file.name)?.groupValues?.get(1)
 
-    /** 1, 2 o 3 en los eventos; null en el resto. */
+    fun isEvent(file: File): Boolean =
+        file.name.contains("evento_") || seqRe.find(file.name)?.groupValues?.get(2) == "E"
+
+    /** 1, 2 o 3 en los eventos de versiones antiguas; null en el resto. */
     fun part(file: File): Int? =
-        if (isEvent(file)) partRe.find(file.name)?.groupValues?.get(1)?.toIntOrNull() else null
+        if (file.name.contains("evento_")) partRe.find(file.name)?.groupValues?.get(1)?.toIntOrNull() else null
 
-    /** Todas las partes guardadas del mismo evento que [file] (parte 1, 2, 3), en orden. */
+    /**
+     * Agrupa los clips guardados en eventos: los que se grabaron seguidos (o a la vez, carretera e
+     * interior) van juntos. [saved] tiene que venir ordenado del más reciente al más viejo.
+     */
+    fun eventGroups(saved: List<File>): List<List<File>> {
+        val groups = mutableListOf<MutableList<File>>()
+        var last = Long.MIN_VALUE
+        for (f in saved) {
+            val t = timeOf(f)
+            if (groups.isEmpty() || last - t > SAME_EVENT_MS) groups.add(mutableListOf())
+            groups.last().add(f)
+            last = t
+        }
+        // Dentro de cada evento, en orden de tiempo y la carretera antes que el interior
+        return groups.map { g ->
+            g.sortedWith(compareBy<File> { timeOf(it) }.thenBy { part(it) ?: 0 }.thenBy { cameraBadge(it) })
+        }
+    }
+
+    /** Todos los clips del mismo evento que [file], en orden. */
     fun eventParts(file: File, saved: List<File>): List<File> {
         if (!isEvent(file)) return if (file.exists()) listOf(file) else emptyList()
-        val key = stampOf(file) ?: return listOf(file)
-        return saved.filter { isEvent(it) && stampOf(it) == key }
-            .sortedWith(compareBy<File> { part(it) ?: 0 }.thenBy { cameraBadge(it) })
+        return eventGroups(saved).firstOrNull { file in it } ?: listOf(file)
     }
 
     /** "F" (carretera), "I" (interior), "FI" (vídeo combinado de la 0.8) o "" en clips de versiones antiguas. */
@@ -307,17 +350,26 @@ object ClipNames {
 
     fun subtitle(file: File): String {
         val part = when (part(file)) {
-            1 -> "Minuto anterior al aviso"
-            2 -> "Minuto del aviso"
-            3 -> "Minuto siguiente al aviso"
-            else -> "Clip"
+            1 -> " · minuto anterior al aviso"
+            2 -> " · minuto del aviso"
+            3 -> " · minuto siguiente al aviso"
+            else -> seqOf(file)?.let { " · nº $it" } ?: ""
         }
         val mb = file.length() / (1024 * 1024)
-        return "${cameraText(file)} · $part · $mb MB"
+        return "${cameraText(file)}$part · $mb MB"
+    }
+
+    /** Cabecera de un evento en la lista: "24/11/2026 · 22:07 · 2 vídeos". */
+    fun groupTitle(group: List<File>): String {
+        val f = fields(group.first())
+        val n = group.size
+        val videos = if (n == 1) "1 vídeo" else "$n vídeos"
+        return if (f == null) videos else "${f[0]}/${f[1]}/${f[2]} · ${f[3]}:${f[4]} · $videos"
     }
 
     fun loopSubtitle(file: File): String {
         val mb = file.length() / (1024 * 1024)
-        return "${cameraText(file)} · grabación normal · se borrará sola · $mb MB"
+        val seq = seqOf(file)?.let { " · nº $it" } ?: ""
+        return "${cameraText(file)}$seq · se borrará sola · $mb MB"
     }
 }

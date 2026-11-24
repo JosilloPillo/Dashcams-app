@@ -99,6 +99,11 @@ class DashcamController(
     private var recording: Recording? = null
     private var currentFile: File? = null
     private var currentStart = 0L
+    /** Número de grabación del tramo actual: el vídeo del interior usa el mismo. */
+    @Volatile
+    private var currentSeq = 1
+    /** Al parar con el botón, se avisa de si el último trozo se ha guardado bien. */
+    private var reportStop = false
     private var lastFinished: File? = null
     private var loopWanted = false
     private var failures = 0
@@ -580,7 +585,9 @@ class DashcamController(
         insideTrack?.start()
     }
 
-    fun stopLoop() {
+    /** [report]: el usuario ha pulsado parar; al cerrarse el vídeo se le dice si se ha guardado. */
+    fun stopLoop(report: Boolean = false) {
+        if (report && recording != null) reportStop = true
         loopWanted = false
         nextSegmentEvent = null
         handler.removeCallbacksAndMessages(null)
@@ -621,7 +628,9 @@ class DashcamController(
         // F = carretera (cámara trasera del móvil), I = interior (frontal).
         // Con las dos cámaras, este es el de la carretera; el del interior lo lleva InsideTrack.
         val camTag = if (useFrontCamera) "I" else "F"
-        val file = storage.newSegmentFile(camTag)
+        val seq = storage.nextSeq()
+        currentSeq = seq
+        val file = storage.newSegmentFile(camTag, seq)
         val options = FileOutputOptions.Builder(file)
             .setDurationLimitMillis(SEGMENT_MS)
             .build()
@@ -647,6 +656,7 @@ class DashcamController(
             currentFile = file
             activeFile = file
             currentStart = System.currentTimeMillis()
+            insideTrack?.rollover()
         } catch (e: Exception) {
             pendingProtection.remove(file)
             loopWanted = false
@@ -681,7 +691,16 @@ class DashcamController(
 
         trim()
 
-        if (!loopWanted) return
+        if (!loopWanted) {
+            if (reportStop) {
+                reportStop = false
+                listener.onDashcamInfo(
+                    if (hasData) "Grabación parada. El último trozo está en Clips › Últimos minutos"
+                    else "Grabación parada, pero el último trozo no se ha podido guardar (código $error)"
+                )
+            }
+            return
+        }
 
         if (ok) {
             failures = 0
@@ -761,6 +780,15 @@ class DashcamController(
             recording?.stop()
         }
 
+        /** La carretera ha empezado un minuto nuevo: el interior también, con el mismo número. */
+        fun rollover() {
+            if (running && recording != null && startedAt > 0 &&
+                System.currentTimeMillis() - startedAt > 5_000L
+            ) {
+                recording?.stop() // al cerrarse empieza el siguiente (onFinalized)
+            }
+        }
+
         fun save(stamp: String) {
             val current = currentFile ?: return
             val elapsed = if (startedAt > 0) System.currentTimeMillis() - startedAt else SEGMENT_MS / 2
@@ -774,8 +802,9 @@ class DashcamController(
         }
 
         private fun startSegment() {
-            val file = storage.newSegmentFile("I")
-            val options = FileOutputOptions.Builder(file).setDurationLimitMillis(SEGMENT_MS).build()
+            val file = storage.newSegmentFile("I", currentSeq)
+            // Algo más de un minuto: normalmente lo corta antes la carretera (rollover) para ir a la par.
+            val options = FileOutputOptions.Builder(file).setDurationLimitMillis(SEGMENT_MS + 15_000L).build()
             nextEvent?.let { pendingProtection[file] = it to 3 }
             nextEvent = null
             try {

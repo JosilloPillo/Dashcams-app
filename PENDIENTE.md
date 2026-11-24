@@ -1,5 +1,10 @@
 # Pendiente para próximas versiones
 
+## Hecho en la 0.9.x (24/11/2026)
+
+- 0.9.8: nombres al estilo Vantrue con el año primero: dashcams.es_2026-11-24_22-07-15_0008_N_F.mp4
+  (nº de grabación compartido por F e I, N normal / E evento). Eventos agrupados en Clips. Aviso al parar.
+
 ## Hecho en la 0.9 (23/11/2026)
 
 - Segundo plano: pide permiso de notificaciones, solo sigue grabando fuera si Android ha aceptado el servicio y, si no, avisa con el motivo.
