@@ -3,7 +3,7 @@
 Convierte un móvil viejo en una dashcam. Gratis, sin cuentas y sin enviar nada a ningún servidor:
 los vídeos se quedan en el móvil.
 
-## Versión 0.9 (Alpha)
+## Versión 0.10 (Alpha)
 
 - Empieza a grabar sola al abrirla, en tramos de 1 minuto que se borran solos (bucle de ~3 GB).
 - **GUARDAR** (o cualquier tecla de volumen, o un mando Bluetooth de selfie): protege el minuto
@@ -53,3 +53,6 @@ Si una compilación falla, aparece en rojo en la pestaña **Actions**.
 3. Pulsa GUARDAR y revisa en Clips que salen las 3 partes y se ven bien.
 4. ¿Se ve bien de noche?
 5. Si la app falla o se cierra: modelo del móvil, versión de Android y qué estabas haciendo.
+
+
+**Última versión siempre en:** https://github.com/JosilloPillo/Dashcams-app/releases/latest/download/DashcamsEspana.apk

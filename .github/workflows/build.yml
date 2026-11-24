@@ -34,7 +34,10 @@ jobs:
           echo "Versión: Alpha $N"
 
       - name: Renombrar el APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk"
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk"
+          # Copia con nombre fijo para el enlace de "última versión", que no cambia nunca
+          cp app/build/outputs/apk/debug/app-debug.apk DashcamsEspana.apk
 
       - name: Guardar el APK en la ejecución
         uses: actions/upload-artifact@v4
@@ -49,9 +52,15 @@ jobs:
         with:
           tag_name: alpha-${{ steps.version.outputs.version }}
           name: Alpha ${{ steps.version.outputs.nombre }}
-          prerelease: true
+          # Se marca como la última: así el enlace .../releases/latest siempre lleva a la más nueva
+          # (GitHub ordena mal la lista: pone la 0.10 detrás de la 0.9.9).
+          prerelease: false
+          make_latest: true
           body: |
             Dashcams España · Alpha ${{ steps.version.outputs.nombre }}
             Compilada automáticamente desde el commit ${{ github.sha }}.
             Descárgala desde el móvil e instálala encima de la versión anterior (no se pierden los clips).
-          files: DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk
+            Enlace que siempre lleva a la última versión: https://github.com/${{ github.repository }}/releases/latest/download/DashcamsEspana.apk
+          files: |
+            DashcamsEspana-Alpha-${{ steps.version.outputs.nombre }}.apk
+            DashcamsEspana.apk
