@@ -70,6 +70,7 @@ class DashcamController(
     private val overlayHandler = Handler(overlayThread.looper)
     private val renderer = OverlayRenderer(context)
     private var overlayEffect: OverlayEffect? = null
+    private val guard = context.getSharedPreferences("ajustes", Context.MODE_PRIVATE)
     /** Efecto del vídeo del interior cuando se graban las dos cámaras. */
     private var overlayEffect2: OverlayEffect? = null
 
@@ -205,8 +206,20 @@ class DashcamController(
 
                 // Modo "las dos a la vez": dos vídeos separados, uno de la carretera (_F) y otro del interior (_I).
                 if (cameraMode == CameraMode.BOTH) {
-                    val pair = if (supportsBothCameras) concurrentPair(provider) else null
-                    if (pair == null) {
+                    // Si la última vez la app se cerró sola con las dos cámaras, no se repite igual:
+                    // 1 cierre → se prueba sin datos en el vídeo; 2 cierres → solo la carretera.
+                    if (guard.getBoolean(KEY_BOTH_TRYING, false)) {
+                        guard.edit()
+                            .putInt(KEY_BOTH_CRASHES, guard.getInt(KEY_BOTH_CRASHES, 0) + 1)
+                            .putBoolean(KEY_BOTH_TRYING, false)
+                            .commit()
+                    }
+                    val crashes = guard.getInt(KEY_BOTH_CRASHES, 0)
+                    val pair = if (supportsBothCameras && crashes < 2) concurrentPair(provider) else null
+                    if (crashes >= 2) {
+                        bothProblem = "la app se cerró sola dos veces al grabar con las dos cámaras en este móvil, " +
+                            "así que graba solo la carretera. Vuelve a elegir «Las dos a la vez» para reintentarlo."
+                    } else if (pair == null) {
                         bothProblem = if (supportsBothCameras) {
                             "el móvil no ofrece la cámara trasera y la frontal juntas"
                         } else {
@@ -214,7 +227,11 @@ class DashcamController(
                         }
                     } else {
                         // Con dos cámaras Android solo garantiza hasta 720p: pedir más hace que falle.
-                        for (withData in listOf(true, false)) {
+                        // Se marca que se está probando: si la app se cierra antes de quitar la marca,
+                        // la próxima vez se sabrá.
+                        guard.edit().putBoolean(KEY_BOTH_TRYING, true).commit()
+                        val attempts = if (crashes == 0) listOf(true, false) else listOf(false)
+                        for (withData in attempts) {
                             var roadEffect: OverlayEffect? = null
                             var insideEffect: OverlayEffect? = null
                             try {
@@ -250,6 +267,13 @@ class DashcamController(
                                 insideTrack = InsideTrack(insideVc)
                                 insidePreview = insidePv
                                 bothActive = true
+                                // Si aguanta 30 s grabando, se da por bueno.
+                                handler.postDelayed({
+                                    if (bothActive) {
+                                        guard.edit().putBoolean(KEY_BOTH_TRYING, false)
+                                            .putInt(KEY_BOTH_CRASHES, 0).apply()
+                                    }
+                                }, 30_000L)
                                 listener.onDashcamInfo("Grabando carretera e interior a la vez, en dos vídeos")
                                 break
                             } catch (e: Exception) {
@@ -266,6 +290,7 @@ class DashcamController(
                         }
                     }
                     if (camera == null) {
+                        guard.edit().putBoolean(KEY_BOTH_TRYING, false).apply()
                         listener.onDashcamInfo(
                             "No se han podido abrir las dos cámaras a la vez: grabando solo la carretera" +
                                 (bothProblem?.let { ". Motivo: $it" } ?: "")
@@ -393,6 +418,10 @@ class DashcamController(
     fun switchCamera(mode: CameraMode) {
         if (mode == cameraMode) return
         cameraMode = mode
+        // Elegirlo a mano es volver a intentarlo desde cero.
+        if (mode == CameraMode.BOTH) {
+            guard.edit().putInt(KEY_BOTH_CRASHES, 0).putBoolean(KEY_BOTH_TRYING, false).apply()
+        }
         stopLoop()
         insideTrack = null
         videoCapture = null
@@ -403,6 +432,8 @@ class DashcamController(
 
     /** Cierra la cámara y libera el hilo de los datos (al cerrar la app del todo). */
     fun release() {
+        // Cerrar la app con normalidad no cuenta como cierre por fallo.
+        guard.edit().putBoolean(KEY_BOTH_TRYING, false).apply()
         stopLoop()
         closeEffects()
         overlayThread.quitSafely()
@@ -648,6 +679,8 @@ class DashcamController(
 
     companion object {
         const val SEGMENT_MS = 60_000L
+        private const val KEY_BOTH_TRYING = "doble_probando"
+        private const val KEY_BOTH_CRASHES = "doble_cierres"
         /** Si se guarda en los primeros o últimos 20 s de un minuto, se guarda también el de al lado. */
         private const val EDGE_MS = 20_000L
         /** Espacio máximo para el bucle: ~3 GB (unos 30 minutos en Full HD). */

@@ -172,8 +172,10 @@ class MainActivity : AppCompatActivity(),
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(this)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        showLastCrash()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
@@ -667,6 +669,21 @@ class MainActivity : AppCompatActivity(),
     }
 
     /** Abre la lista de optimización de batería del móvil; si no existe, la guía de dontkillmyapp.com. */
+    /** Si la app se cerró por un fallo la última vez, lo enseña para poder copiarlo y mandarlo. */
+    private fun showLastCrash() {
+        val text = CrashLog.take(this) ?: return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("La app se cerró por un fallo")
+            .setMessage("Copia esto y mándaselo a Dashcams España para arreglarlo:\n\n$text")
+            .setPositiveButton("Copiar") { _, _ ->
+                val cm = getSystemService(android.content.ClipboardManager::class.java)
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("Fallo Dashcams España", text))
+                Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
+    }
+
     /** Pantalla de Android para dar el permiso "Mostrar sobre otras apps". */
     private fun openOverlaySettings() {
         Toast.makeText(this, "Activa «Mostrar sobre otras apps» para Dashcams España", Toast.LENGTH_LONG).show()
