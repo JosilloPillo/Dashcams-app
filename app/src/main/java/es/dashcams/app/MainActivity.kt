@@ -185,6 +185,7 @@ class MainActivity : AppCompatActivity(),
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         showLastCrash()
+        roundInsidePreview()
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemBars()
@@ -686,6 +687,21 @@ class MainActivity : AppCompatActivity(),
     }
 
     /** Abre la lista de optimización de batería del móvil; si no existe, la guía de dontkillmyapp.com. */
+    /** La imagen del interior con las esquinas redondeadas, igual que su marco amarillo. */
+    private fun roundInsidePreview() {
+        val dp = resources.displayMetrics.density
+        fun round(view: View, radius: Float) {
+            view.outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(v: View, outline: android.graphics.Outline) {
+                    outline.setRoundRect(0, 0, v.width, v.height, radius)
+                }
+            }
+            view.clipToOutline = true
+        }
+        round(binding.insideFrame, 10 * dp)
+        round(binding.insidePreview, 8 * dp)
+    }
+
     /** Si la app se cerró por un fallo la última vez, lo enseña para poder copiarlo y mandarlo. */
     private fun showLastCrash() {
         val text = CrashLog.take(this) ?: return

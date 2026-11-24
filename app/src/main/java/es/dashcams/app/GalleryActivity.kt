@@ -60,7 +60,8 @@ class GalleryActivity : AppCompatActivity() {
         // El tramo que se está grabando ahora mismo no se enseña (aún no está terminado)
         val recordingNow = DashcamController.activeFiles
         val list = if (showLoop) storage.loopSegments().filter { it !in recordingNow }.reversed() else storage.savedClips()
-        adapter.submit(list, showLoop)
+        val used = storage.loopSegments().sumOf { it.length() }
+        adapter.submit(list, showLoop, used)
     }
 
     private fun uriFor(file: File): Uri =
@@ -148,7 +149,10 @@ class ClipAdapter(
     class GroupHolder(val binding: ItemEventGroupBinding) : RecyclerView.ViewHolder(binding.root)
 
     @android.annotation.SuppressLint("NotifyDataSetChanged")
-    fun submit(list: List<File>, showingLoop: Boolean) {
+    private var loopBytes = 0L
+
+    fun submit(list: List<File>, showingLoop: Boolean, usedLoopBytes: Long = 0L) {
+        loopBytes = usedLoopBytes
         items = if (showingLoop) list else ClipNames.eventGroups(list).flatMap { listOf(ClipNames.groupTitle(it)) + it }
         loop = showingLoop
         notifyDataSetChanged()
@@ -184,7 +188,9 @@ class ClipAdapter(
         if (loop) {
             b.kickerText.setText(R.string.tab_loop)
             b.title.text = Brand.highlight("Últimos minutos", "minutos")
-            b.subtitle.setText(R.string.loop_subtitle)
+            val gb = { bytes: Long -> String.format(java.util.Locale("es", "ES"), "%.1f", bytes / 1073741824.0) }
+            b.subtitle.text = ctx.getString(R.string.loop_subtitle) +
+                "\nOcupa ${gb(loopBytes)} GB de ${gb(DashcamController.MAX_LOOP_BYTES)} GB: al llegar al límite se borran los más viejos."
             b.emptyText.setText(R.string.loop_empty)
         } else {
             b.kickerText.setText(R.string.gallery_kicker)
