@@ -16,6 +16,7 @@ import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraEffect
 import androidx.camera.core.AspectRatio
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ConcurrentCamera
 import androidx.camera.core.Preview
@@ -253,7 +254,8 @@ class DashcamController(
                                 break
                             } catch (e: Exception) {
                                 lastError = e
-                                bothProblem = e.message ?: e.javaClass.simpleName
+                                bothProblem = (pairIds?.let { "[cámaras $it] " } ?: "") +
+                                    (e.message ?: e.javaClass.simpleName)
                                 for (effect in listOf(roadEffect, insideEffect)) {
                                     try {
                                         effect?.close()
@@ -465,21 +467,26 @@ class DashcamController(
             return null
         }
         for (combo in combos) {
-            var backId: String? = null
-            var frontId: String? = null
-            for (info in combo) {
-                try {
-                    val c2 = Camera2CameraInfo.from(info)
-                    when (c2.getCameraCharacteristic(CameraCharacteristics.LENS_FACING)) {
-                        CameraCharacteristics.LENS_FACING_BACK -> if (backId == null) backId = c2.cameraId
-                        CameraCharacteristics.LENS_FACING_FRONT -> if (frontId == null) frontId = c2.cameraId
-                    }
-                } catch (e: Exception) {
-                }
+            // Se usan los selectores que da el propio móvil para cada cámara de la combinación.
+            // Con un filtro hecho a mano, CameraX acababa mandando las dos grabaciones a la cámara 0.
+            val back = combo.firstOrNull { it.lensFacing == CameraSelector.LENS_FACING_BACK }
+            val front = combo.firstOrNull { it.lensFacing == CameraSelector.LENS_FACING_FRONT }
+            if (back != null && front != null) {
+                pairIds = "${idOf(back)} y ${idOf(front)}"
+                return back.cameraSelector to front.cameraSelector
             }
-            if (backId != null && frontId != null) return selectorForId(backId) to selectorForId(frontId)
         }
         return null
+    }
+
+    /** Ids de las cámaras elegidas para el modo doble (para el motivo del fallo). */
+    private var pairIds: String? = null
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun idOf(info: CameraInfo): String = try {
+        Camera2CameraInfo.from(info).cameraId
+    } catch (e: Exception) {
+        "?"
     }
 
     /** En móviles que juntan varias lentes en una sola cámara, el gran angular se consigue con zoom < 1x. */
