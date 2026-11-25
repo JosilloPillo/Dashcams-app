@@ -555,7 +555,10 @@ class MainActivity : AppCompatActivity(),
         }
         s.btnBattery.setOnClickListener { openBatterySettings() }
         s.btnLimit.setOnClickListener { chooseLoopLimit(s) }
-        s.btnWelcome.setOnClickListener { startActivity(Intent(this, WelcomeActivity::class.java)) }
+        s.btnWelcome.setOnClickListener {
+            inAppScreen = true // es una pantalla de la propia app: ni parar ni sacar el botón flotante
+            startActivity(Intent(this, WelcomeActivity::class.java))
+        }
         s.switchBubble.setOnCheckedChangeListener { _, on ->
             bubbleOn = on
             prefs.edit().putBoolean(KEY_BUBBLE, on).apply()
@@ -724,10 +727,10 @@ class MainActivity : AppCompatActivity(),
             }
         }
         box.clipToOutline = true
-        // Grande: hasta el 85 % del ancho o el 72 % del alto de la pantalla (lo que llegue antes)
+        // Grande: hasta el 85 % del ancho o el 62 % del alto (sin tapar los botones) de la pantalla (lo que llegue antes)
         val dm = resources.displayMetrics
         val byWidth = (dm.widthPixels * 0.85f).toInt()
-        val byHeight = (dm.heightPixels * 0.72f * 960 / 504).toInt()
+        val byHeight = (dm.heightPixels * 0.62f * 960 / 504).toInt()
         val w = minOf(byWidth, byHeight, (900 * dp).toInt())
         val lp = binding.promoImage.layoutParams
         lp.width = w

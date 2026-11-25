@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_brand"
-    android:clipToPadding="false"
+    android:clipToPadding="true"
     android:fillViewport="true">
 
     <LinearLayout
@@ -261,6 +261,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
+                android:baselineAligned="false"
                 android:orientation="horizontal">
 
                 <androidx.appcompat.widget.AppCompatButton
@@ -272,7 +273,10 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_tab"
                     android:text="YouTube"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:maxLines="1"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp" />
 
                 <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/btnInstagram"
@@ -283,7 +287,10 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_tab"
                     android:text="Instagram"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:maxLines="1"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp" />
 
                 <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/btnTiktok"
@@ -293,7 +300,10 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_tab"
                     android:text="TikTok"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:maxLines="1"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp" />
             </LinearLayout>
 
             <androidx.appcompat.widget.AppCompatButton
