@@ -27,6 +27,8 @@ jobs:
       # Versión para Google Play (.aab) firmada con la clave de subida. Solo si están los secretos
       # FIRMA_KEYSTORE_BASE64 y FIRMA_PASSWORD (Settings › Secrets and variables › Actions).
       - name: Compilar para Google Play
+        # Si falla (p. ej. contraseña mal puesta), el APK de pruebas se publica igual
+        continue-on-error: true
         env:
           FIRMA_KEYSTORE_BASE64: ${{ secrets.FIRMA_KEYSTORE_BASE64 }}
           FIRMA_PASSWORD: ${{ secrets.FIRMA_PASSWORD }}
@@ -35,7 +37,9 @@ jobs:
             echo "Sin clave de subida: no se genera la versión de Google Play"
             exit 0
           fi
-          echo "$FIRMA_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/subida.jks"
+          # Por si al pegarlos se coló un espacio o un salto de línea
+          export FIRMA_PASSWORD=$(printf '%s' "$FIRMA_PASSWORD" | tr -d ' \r\n\t')
+          printf '%s' "$FIRMA_KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/subida.jks"
           export FIRMA_KEYSTORE_PATH="$RUNNER_TEMP/subida.jks"
           ./gradlew bundleRelease --stacktrace
           rm -f "$RUNNER_TEMP/subida.jks"
