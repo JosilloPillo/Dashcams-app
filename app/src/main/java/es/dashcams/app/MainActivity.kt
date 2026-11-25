@@ -724,14 +724,15 @@ class MainActivity : AppCompatActivity(),
             }
         }
         box.clipToOutline = true
-        // Que no sea más grande que media pantalla en móviles pequeños
-        val maxW = (resources.displayMetrics.widthPixels * 0.62f).toInt()
+        // Grande: hasta el 85 % del ancho o el 72 % del alto de la pantalla (lo que llegue antes)
+        val dm = resources.displayMetrics
+        val byWidth = (dm.widthPixels * 0.85f).toInt()
+        val byHeight = (dm.heightPixels * 0.72f * 960 / 504).toInt()
+        val w = minOf(byWidth, byHeight, (900 * dp).toInt())
         val lp = binding.promoImage.layoutParams
-        if (lp.width > maxW) {
-            lp.width = maxW
-            lp.height = maxW * 504 / 960
-            binding.promoImage.layoutParams = lp
-        }
+        lp.width = w
+        lp.height = w * 504 / 960
+        binding.promoImage.layoutParams = lp
         binding.promoImage.setImageResource(promo.image)
         binding.promoCta.text = promo.cta
         val hide = Runnable { hidePromo() }

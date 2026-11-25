@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import es.dashcams.app.databinding.ActivityWelcomeBinding
 
 /**
@@ -20,6 +22,22 @@ class WelcomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityWelcomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Android 15+ dibuja detrás de las barras del sistema: se deja su hueco arriba y abajo
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
+        // En pantallas anchas (móvil girado, tablet) la columna no pasa de 600dp y va centrada
+        val dp = resources.displayMetrics.density
+        val screenDp = resources.displayMetrics.widthPixels / dp
+        if (screenDp > 640) {
+            binding.content.layoutParams = (binding.content.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
+                width = (600 * dp).toInt()
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+            }
+        }
 
         binding.title.text = Brand.highlight("Tu móvil, ahora es una dashcam", "dashcam")
         Brand.enter(binding.content)
