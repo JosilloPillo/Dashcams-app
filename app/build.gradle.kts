@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "es.dashcams.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "es.dashcams.app"
         minSdk = 26 // Android 8: la idea es usar móviles viejos
-        targetSdk = 35
-        versionCode = 24
-        versionName = "0.10.0"
+        targetSdk = 36 // Android 16: lo exige Google Play
+        versionCode = 25
+        versionName = "0.11.0"
 
         // Librerías nativas del control por voz: solo móviles ARM y el emulador del PC (x86_64)
         ndk {
@@ -30,6 +30,17 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Clave de subida a Google Play. No está en el repositorio: GitHub la recibe de los
+        // secretos FIRMA_KEYSTORE_BASE64 y FIRMA_PASSWORD (ver .github/workflows/build.yml).
+        val releaseStore = System.getenv("FIRMA_KEYSTORE_PATH")
+        if (releaseStore != null && file(releaseStore).exists()) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = System.getenv("FIRMA_PASSWORD")
+                keyAlias = "dashcams"
+                keyPassword = System.getenv("FIRMA_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -37,6 +48,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

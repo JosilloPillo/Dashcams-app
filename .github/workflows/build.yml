@@ -24,6 +24,29 @@ jobs:
       - name: Compilar la app
         run: ./gradlew assembleDebug --stacktrace
 
+      # Versión para Google Play (.aab) firmada con la clave de subida. Solo si están los secretos
+      # FIRMA_KEYSTORE_BASE64 y FIRMA_PASSWORD (Settings › Secrets and variables › Actions).
+      - name: Compilar para Google Play
+        env:
+          FIRMA_KEYSTORE_BASE64: ${{ secrets.FIRMA_KEYSTORE_BASE64 }}
+          FIRMA_PASSWORD: ${{ secrets.FIRMA_PASSWORD }}
+        run: |
+          if [ -z "$FIRMA_KEYSTORE_BASE64" ]; then
+            echo "Sin clave de subida: no se genera la versión de Google Play"
+            exit 0
+          fi
+          echo "$FIRMA_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/subida.jks"
+          export FIRMA_KEYSTORE_PATH="$RUNNER_TEMP/subida.jks"
+          ./gradlew bundleRelease --stacktrace
+          rm -f "$RUNNER_TEMP/subida.jks"
+
+      - name: Guardar el paquete de Google Play
+        if: hashFiles('app/build/outputs/bundle/release/*.aab') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: GooglePlay-aab
+          path: app/build/outputs/bundle/release/*.aab
+
       - name: Leer la versión de la app
         id: version
         run: |
