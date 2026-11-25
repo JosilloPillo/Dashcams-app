@@ -20,6 +20,8 @@
     <string name="settings_beep">Pitido al guardar un clip</string>
     <string name="settings_fit">Ver la imagen completa (con bandas negras)</string>
     <string name="settings_fit_note">Solo cambia lo que ves en pantalla: siempre se graba la imagen entera.</string>
+    <string name="settings_auto_dark">Apagar la imagen sola a los 30 s</string>
+    <string name="settings_auto_dark_note">Si no tocas la pantalla, se queda en negro y sigue grabando: el móvil se calienta mucho menos. Vuelve al tocarla o al decir el comando de voz.</string>
     <string name="settings_overlay">Datos en el vídeo</string>
     <string name="settings_overlay_speed">Velocidad</string>
     <string name="settings_overlay_coords">Coordenadas GPS</string>

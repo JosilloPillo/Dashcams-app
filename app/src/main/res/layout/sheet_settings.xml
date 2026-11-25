@@ -61,6 +61,19 @@
             android:layout_height="wrap_content"
             android:text="@string/settings_fit_note" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchAutoDark"
+            style="@style/Dashcams.SettingsSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_auto_dark" />
+
+        <TextView
+            style="@style/Dashcams.SettingsNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_auto_dark_note" />
+
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnLimit"
             style="@style/Dashcams.Pill"

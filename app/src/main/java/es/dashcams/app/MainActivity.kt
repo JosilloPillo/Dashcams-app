@@ -74,6 +74,9 @@ class MainActivity : AppCompatActivity(),
     // Ajustes (se guardan en el móvil)
     private var beepOn = true
     private var fitPreview = false
+    private var autoDarkOn = false
+    private var visible = false
+    private val autoDark = Runnable { tryAutoDark() }
     private var voiceOn = false
     private var keepInBackground = true
     /** Se ha abierto otra pantalla de la propia app (Clips): no hay que parar de grabar. */
@@ -210,6 +213,7 @@ class MainActivity : AppCompatActivity(),
         dashcam.setInitialCamera(savedCameraMode())
         beepOn = prefs.getBoolean(KEY_BEEP, true)
         fitPreview = prefs.getBoolean(KEY_FIT, false)
+        autoDarkOn = prefs.getBoolean(KEY_AUTO_DARK, false) // apagado de serie
         voiceOn = prefs.getBoolean(KEY_VOICE, false)
         voice.phrase = VoiceCommand.Phrase.fromName(prefs.getString(KEY_PHRASE, null))
         keepInBackground = prefs.getBoolean(KEY_BACKGROUND, true)
@@ -274,6 +278,7 @@ class MainActivity : AppCompatActivity(),
     override fun onStart() {
         super.onStart()
         inAppScreen = false
+        visible = true
         FloatingButton.hide(this)
         if (backgroundFailed) {
             backgroundFailed = false
@@ -296,10 +301,13 @@ class MainActivity : AppCompatActivity(),
             dashcam.startLoop()
         }
         syncBackgroundService()
+        restartAutoDark()
     }
 
     override fun onStop() {
         wasStopped = true
+        visible = false
+        ui.removeCallbacks(autoDark)
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
         dashcam.detachPreview()
 
@@ -415,7 +423,16 @@ class MainActivity : AppCompatActivity(),
     // ---- VoiceCommand.Listener ----
 
     override fun onVoiceCommand() {
+        // Si la pantalla estaba en negro, vuelve para que se vea que se ha guardado
+        if (binding.darkOverlay.isVisible) setDarkMode(false)
         saveEvent()
+        restartAutoDark()
+    }
+
+    /** Cualquier toque en la pantalla vuelve a contar los 30 s desde cero. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        restartAutoDark()
     }
 
     override fun onVoiceState(listening: Boolean, message: String?) {
@@ -526,6 +543,11 @@ class MainActivity : AppCompatActivity(),
             prefs.edit().putBoolean(KEY_BEEP, on).apply()
             if (on && beepId != 0) soundPool.play(beepId, 1f, 1f, 1, 0, 1f) // para que se oiga cómo suena
         }
+        s.switchAutoDark.setOnCheckedChangeListener { _, on ->
+            autoDarkOn = on
+            prefs.edit().putBoolean(KEY_AUTO_DARK, on).apply()
+            restartAutoDark()
+        }
         s.switchFit.setOnCheckedChangeListener { _, on ->
             fitPreview = on
             prefs.edit().putBoolean(KEY_FIT, on).apply()
@@ -625,6 +647,7 @@ class MainActivity : AppCompatActivity(),
         }
         s.switchBeep.isChecked = beepOn
         s.switchFit.isChecked = fitPreview
+        s.switchAutoDark.isChecked = autoDarkOn
 
         // Datos en el vídeo
         s.switchSpeed.isChecked = Telemetry.showSpeed
@@ -1131,9 +1154,35 @@ class MainActivity : AppCompatActivity(),
             if (recording) "● Grabando · toca la pantalla para volver" else "Parado · toca la pantalla para volver"
     }
 
+    /** Vuelve a contar el tiempo para apagar la imagen sola (si está activado en Ajustes). */
+    private fun restartAutoDark() {
+        ui.removeCallbacks(autoDark)
+        if (autoDarkOn && visible && !binding.darkOverlay.isVisible) {
+            ui.postDelayed(autoDark, AUTO_DARK_MS)
+        }
+    }
+
+    private fun tryAutoDark() {
+        if (!autoDarkOn || !visible || binding.darkOverlay.isVisible) return
+        // Con Ajustes o el banner abiertos no se apaga: se vuelve a mirar en un rato
+        if (settings != null || binding.promo.isVisible) {
+            restartAutoDark()
+            return
+        }
+        setDarkMode(true)
+    }
+
     /** Tapa la pantalla de negro y baja el brillo al mínimo: el móvil se calienta menos. */
     private fun setDarkMode(on: Boolean) {
+        if (binding.darkOverlay.isVisible == on) return
         binding.darkOverlay.isVisible = on
+        // Con una sola cámara se deja de pintar la imagen (menos trabajo, menos calor); la grabación sigue.
+        // Con las dos a la vez no se toca: al volver a ponerla se quedaría en negro.
+        if (::dashcam.isInitialized && !dashcam.bothActive) {
+            if (on) dashcam.detachPreview()
+            else dashcam.attachPreview(binding.previewView, binding.insidePreview)
+        }
+        if (!on) restartAutoDark()
         val params = window.attributes
         params.screenBrightness =
             if (on) 0.01f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
@@ -1174,6 +1223,8 @@ class MainActivity : AppCompatActivity(),
         private const val KEY_SOUND = "sonido"
         private const val KEY_BEEP = "pitido"
         private const val KEY_FIT = "encuadre_completo"
+        private const val KEY_AUTO_DARK = "pantalla_negra_auto"
+        private const val AUTO_DARK_MS = 30_000L
         private const val KEY_INSIDE = "camara_interior"
         private const val KEY_CAMERA_MODE = "modo_camara"
         private const val KEY_INSIDE_WARNED = "aviso_interior_visto"
