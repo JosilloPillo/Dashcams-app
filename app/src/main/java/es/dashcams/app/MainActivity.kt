@@ -727,10 +727,10 @@ class MainActivity : AppCompatActivity(),
             }
         }
         box.clipToOutline = true
-        // Grande: hasta el 85 % del ancho o el 62 % del alto (sin tapar los botones) de la pantalla (lo que llegue antes)
+        // Grande: hasta el 88 % del ancho o el 78 % del alto (sale solo al abrir, puede tapar los botones) de la pantalla (lo que llegue antes)
         val dm = resources.displayMetrics
-        val byWidth = (dm.widthPixels * 0.85f).toInt()
-        val byHeight = (dm.heightPixels * 0.62f * 960 / 504).toInt()
+        val byWidth = (dm.widthPixels * 0.88f).toInt()
+        val byHeight = (dm.heightPixels * 0.78f * 960 / 504).toInt()
         val w = minOf(byWidth, byHeight, (900 * dp).toInt())
         val lp = binding.promoImage.layoutParams
         lp.width = w
