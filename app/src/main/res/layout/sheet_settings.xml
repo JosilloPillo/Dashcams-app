@@ -293,5 +293,22 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal" />
         </HorizontalScrollView>
+
+        <!-- ===== Dashcams España ===== -->
+        <TextView
+            style="@style/Dashcams.SettingsSection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Dashcams España" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnWelcome"
+            style="@style/Dashcams.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_tab"
+            android:text="Consejos, canales y tienda"
+            android:textSize="14sp" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

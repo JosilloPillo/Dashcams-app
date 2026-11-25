@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bienvenida: sale la primera vez que se abre la app (y desde Ajustes) -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_brand"
+    android:fillViewport="true"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:id="@+id/content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingTop="24dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="28dp">
+
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="76dp"
+            android:layout_gravity="center_horizontal"
+            android:contentDescription="@null"
+            android:src="@drawable/escudo" />
+
+        <TextView
+            style="@style/Dashcams.KickerText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="14dp"
+            android:text="Bienvenido" />
+
+        <TextView
+            android:id="@+id/title"
+            style="@style/Dashcams.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:text="Tu móvil, ahora es una dashcam" />
+
+        <TextView
+            style="@style/Dashcams.Support"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="Gratis, sin anuncios y sin cuentas. Hecha por Dashcams España." />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                style="@style/Dashcams.KickerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cómo funciona"
+                android:textColor="@color/amarillo" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Graba sin parar en trozos de 1 minuto. Lo viejo se va borrando solo para dejar sitio." />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Cuando pase algo, pulsa GUARDAR, di la frase de voz o toca «Guardar clip» en la notificación: ese momento queda guardado y no se borra nunca." />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Todo se queda en tu móvil. Nada se envía a ningún sitio salvo los clips que tú decidas mandarnos." />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                style="@style/Dashcams.KickerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Permisos que te vamos a pedir"
+                android:textColor="@color/amarillo" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/public_sans_semibold"
+                android:text="Cámara"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Para grabar la carretera (y el interior si lo eliges)." />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/public_sans_semibold"
+                android:text="Micrófono"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Para grabar el sonido. Lo puedes apagar en Ajustes, y también lo usa el control por voz si lo activas." />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/public_sans_semibold"
+                android:text="Ubicación"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Solo para poner la velocidad y las coordenadas dentro del vídeo. Se puede quitar en Ajustes." />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/public_sans_semibold"
+                android:text="Notificaciones"
+                android:textColor="@android:color/white"
+                android:textSize="16sp" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Para que, con la app fuera, veas que está grabando y tengas el botón «Guardar clip»." />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                style="@style/Dashcams.KickerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Consejos para colocar el móvil"
+                android:textColor="@color/amarillo" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Usa un móvil viejo que ya no uses, con un soporte firme: si vibra, el vídeo sale movido." />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Ponlo centrado, detrás del retrovisor, sin tapar tu visión ni la zona del limpiaparabrisas." />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Déjalo enchufado con un cargador de coche de 2 A o más y un cable largo." />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Evita el sol directo en verano: si se calienta mucho, la app avisa y para." />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Configúralo antes de arrancar. Conduciendo, guarda los clips con la voz." />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                style="@style/Dashcams.KickerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Síguenos"
+                android:textColor="@color/amarillo" />
+
+            <TextView
+                style="@style/Dashcams.Support"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Los mejores clips que nos mandáis salen en el canal. El soporte antivibraciones y el cable largo los tienes en la tienda." />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btnYoutube"
+                    style="@style/Dashcams.Pill"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_tab"
+                    android:text="YouTube"
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btnInstagram"
+                    style="@style/Dashcams.Pill"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_tab"
+                    android:text="Instagram"
+                    android:textSize="14sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btnTiktok"
+                    style="@style/Dashcams.Pill"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_tab"
+                    android:text="TikTok"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnWeb"
+                style="@style/Dashcams.Pill"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_tab"
+                android:text="dashcams.es · comparativa de dashcams"
+                android:textSize="14sp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnShop"
+                style="@style/Dashcams.Pill"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_tab"
+                android:text="Tienda: soporte, cable y merch"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnStart"
+            style="@style/Dashcams.Cta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:background="@drawable/bg_cta"
+            android:text="Empezar a grabar" />
+    </LinearLayout>
+</ScrollView>

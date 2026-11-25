@@ -181,6 +181,12 @@ class MainActivity : AppCompatActivity(),
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // La primera vez, antes de pedir permisos, la bienvenida explica qué se va a pedir y por qué.
+        if (!WelcomeActivity.seen(this)) {
+            startActivity(Intent(this, WelcomeActivity::class.java))
+            finish()
+            return
+        }
         CrashLog.install(this)
         CrashLog.beforeCrash = { if (::dashcam.isInitialized) dashcam.stopLoop() }
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -315,6 +321,11 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onDestroy() {
+        // Se ha ido directa a la bienvenida sin montar nada
+        if (!::binding.isInitialized) {
+            super.onDestroy()
+            return
+        }
         // Salir de la app (botón Atrás o cerrarla): se para todo.
         ui.removeCallbacksAndMessages(null)
         try {
@@ -542,6 +553,7 @@ class MainActivity : AppCompatActivity(),
         }
         s.btnBattery.setOnClickListener { openBatterySettings() }
         s.btnLimit.setOnClickListener { chooseLoopLimit(s) }
+        s.btnWelcome.setOnClickListener { startActivity(Intent(this, WelcomeActivity::class.java)) }
         s.switchBubble.setOnCheckedChangeListener { _, on ->
             bubbleOn = on
             prefs.edit().putBoolean(KEY_BUBBLE, on).apply()

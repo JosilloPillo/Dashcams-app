@@ -292,6 +292,11 @@
         </activity-alias>
 
         <activity
+            android:name=".WelcomeActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".GalleryActivity"
             android:exported="false" />
 
