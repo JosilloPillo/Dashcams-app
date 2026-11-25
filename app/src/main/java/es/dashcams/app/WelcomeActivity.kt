@@ -35,7 +35,7 @@ class WelcomeActivity : AppCompatActivity() {
             val first = !seen(this)
             getSharedPreferences("ajustes", MODE_PRIVATE).edit().putBoolean(KEY_SEEN, true).apply()
             if (first) {
-                startActivity(Intent(this, MainActivity::class.java))
+                startActivity(Intent(this, MainActivity::class.java).putExtra("desde_bienvenida", true))
             }
             finish()
         }

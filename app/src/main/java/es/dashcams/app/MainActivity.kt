@@ -192,6 +192,8 @@ class MainActivity : AppCompatActivity(),
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         showLastCrash()
+        // Justo después de la bienvenida no hace falta el banner
+        if (savedInstanceState == null && !intent.getBooleanExtra("desde_bienvenida", false)) showPromo()
         roundInsidePreview()
         setupInsideDrag()
 
@@ -708,6 +710,63 @@ class MainActivity : AppCompatActivity(),
     }
 
     /** Abre la lista de optimización de batería del móvil; si no existe, la guía de dontkillmyapp.com. */
+    /**
+     * Banner de Dashcams España al abrir la app: uno distinto cada vez. La grabación empieza igual
+     * debajo; se cierra con la X, tocándolo (abre el enlace) o solo a los 10 segundos.
+     */
+    private fun showPromo() {
+        val promo = Promos.next(this)
+        val box = binding.promo
+        val dp = resources.displayMetrics.density
+        box.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(v: View, outline: android.graphics.Outline) {
+                outline.setRoundRect(0, 0, v.width, v.height, 18 * dp)
+            }
+        }
+        box.clipToOutline = true
+        // Que no sea más grande que media pantalla en móviles pequeños
+        val maxW = (resources.displayMetrics.widthPixels * 0.62f).toInt()
+        val lp = binding.promoImage.layoutParams
+        if (lp.width > maxW) {
+            lp.width = maxW
+            lp.height = maxW * 504 / 960
+            binding.promoImage.layoutParams = lp
+        }
+        binding.promoImage.setImageResource(promo.image)
+        binding.promoCta.text = promo.cta
+        val hide = Runnable { hidePromo() }
+        val open = View.OnClickListener {
+            hidePromo()
+            if (promo.url == null) {
+                inAppScreen = true
+                startActivity(Intent(this, GalleryActivity::class.java))
+                Toast.makeText(this, "Elige un clip y toca Compartir › dashcams.es", Toast.LENGTH_LONG).show()
+            } else {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(promo.url)))
+                } catch (e: Exception) {
+                }
+            }
+        }
+        binding.promoImage.setOnClickListener(open)
+        binding.promoCta.setOnClickListener(open)
+        binding.promoClose.setOnClickListener { hidePromo() }
+        box.alpha = 0f
+        box.scaleX = 0.92f
+        box.scaleY = 0.92f
+        box.isVisible = true
+        box.animate().alpha(1f).scaleX(1f).scaleY(1f).setStartDelay(600).setDuration(280)
+            .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        ui.postDelayed(hide, Promos.SHOW_MS)
+    }
+
+    private fun hidePromo() {
+        val box = binding.promo
+        if (!box.isVisible) return
+        box.animate().alpha(0f).scaleX(0.95f).scaleY(0.95f).setStartDelay(0).setDuration(180)
+            .withEndAction { box.isVisible = false }.start()
+    }
+
     /** La imagen del interior con las esquinas redondeadas, igual que su marco amarillo. */
     private fun roundInsidePreview() {
         val dp = resources.displayMetrics.density
