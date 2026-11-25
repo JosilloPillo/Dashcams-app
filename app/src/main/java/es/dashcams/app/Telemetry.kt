@@ -42,6 +42,9 @@ object Telemetry {
 
     val hasFix: Boolean get() = fresh()
 
+    /** Velocidad en km/h, o -1 si no hay señal GPS reciente. */
+    fun speedNow(): Float = if (fresh() && speedKmh >= 0f) speedKmh else -1f
+
     fun speedText(): String =
         if (fresh() && speedKmh >= 0f) String.format(Locale.US, "%.0f km/h", speedKmh) else "-- km/h"
 

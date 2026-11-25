@@ -31,6 +31,9 @@ class RecordingService : Service() {
 
         /** El móvil se va a apagar o han quitado la app de recientes: hay que cerrar bien el vídeo. */
         fun onShutdownRequested()
+
+        /** Han tocado «Parar grabación» en el aviso de que parece que has aparcado. */
+        fun onStopRequested()
     }
 
     private val shutdownReceiver = object : android.content.BroadcastReceiver() {
@@ -61,6 +64,11 @@ class RecordingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_SAVE) {
             controls?.onSaveRequested()
+            return START_NOT_STICKY
+        }
+        if (intent?.action == ACTION_STOP || intent?.action == ACTION_KEEP) {
+            cancelParkedAsk(this)
+            if (intent.action == ACTION_STOP) controls?.onStopRequested()
             return START_NOT_STICKY
         }
         goForeground()
@@ -139,6 +147,61 @@ class RecordingService : Service() {
         private const val CHANNEL_ID = "grabacion"
         private const val NOTIFICATION_ID = 7
         private const val ACTION_SAVE = "es.dashcams.app.GUARDAR"
+        private const val ACTION_STOP = "es.dashcams.app.PARAR"
+        private const val ACTION_KEEP = "es.dashcams.app.SEGUIR"
+        private const val ASK_CHANNEL_ID = "avisos"
+        private const val ASK_NOTIFICATION_ID = 8
+
+        /**
+         * Aviso con sonido cuando parece que has aparcado y se sigue grabando:
+         * «Parar grabación» o «Seguir grabando».
+         */
+        fun askParked(context: Context, title: String, text: String) {
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return
+            if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.createNotificationChannel(
+                    NotificationChannel(ASK_CHANNEL_ID, "Avisos", NotificationManager.IMPORTANCE_HIGH).apply {
+                        description = "Aviso de que se sigue grabando cuando parece que has aparcado"
+                    }
+                )
+            }
+            val open = PendingIntent.getActivity(
+                context, 2,
+                Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val stop = PendingIntent.getService(
+                context, 3,
+                Intent(context, RecordingService::class.java).setAction(ACTION_STOP),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val keep = PendingIntent.getService(
+                context, 4,
+                Intent(context, RecordingService::class.java).setAction(ACTION_KEEP),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val notification = NotificationCompat.Builder(context, ASK_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_rec)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .addAction(0, "Parar grabación", stop)
+                .addAction(0, "Seguir grabando", keep)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+            try {
+                manager.notify(ASK_NOTIFICATION_ID, notification)
+            } catch (ignored: SecurityException) {
+            }
+        }
+
+        fun cancelParkedAsk(context: Context) {
+            context.getSystemService(NotificationManager::class.java)?.cancel(ASK_NOTIFICATION_ID)
+        }
 
         /** La pantalla principal se apunta aquí para recibir el "Guardar clip" de la notificación. */
         @Volatile

@@ -77,6 +77,18 @@ class MainActivity : AppCompatActivity(),
     private var autoDarkOn = false
     private var visible = false
     private val autoDark = Runnable { tryAutoDark() }
+
+    // Aviso de «¿quieres seguir grabando?» cuando parece que has aparcado
+    private var wasCharging: Boolean? = null
+    private var stoppedSince = 0L
+    private var parkAsked = false
+    private var parkDialog: androidx.appcompat.app.AlertDialog? = null
+    private val parkCheck = object : Runnable {
+        override fun run() {
+            checkParked()
+            ui.postDelayed(this, PARK_CHECK_MS)
+        }
+    }
     private var voiceOn = false
     private var keepInBackground = true
     /** Se ha abierto otra pantalla de la propia app (Clips): no hay que parar de grabar. */
@@ -142,6 +154,11 @@ class MainActivity : AppCompatActivity(),
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
             batteryLevel = if (level >= 0 && scale > 0) level * 100 / scale else -1
             charging = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+            // Se ha quitado el cargador grabando: lo normal es que hayas apagado el coche
+            if (wasCharging == true && !charging && dashcam.isLoopRunning && !parkAsked) {
+                askParked("Se ha desconectado el cargador")
+            }
+            wasCharging = charging
             checkHeat()
             // Con la batería a punto de agotarse se cierra el vídeo a tiempo: si el móvil se apaga
             // con el vídeo abierto, ese minuto no se puede reproducir.
@@ -238,6 +255,7 @@ class MainActivity : AppCompatActivity(),
         }
         binding.btnDark.setOnClickListener { setDarkMode(true) }
         binding.darkOverlay.setOnClickListener { setDarkMode(false) }
+        ui.postDelayed(parkCheck, PARK_CHECK_MS)
 
         // Temperatura y reloj interno: funcionan también con la app en segundo plano
         ContextCompat.registerReceiver(
@@ -279,6 +297,7 @@ class MainActivity : AppCompatActivity(),
         super.onStart()
         inAppScreen = false
         visible = true
+        RecordingService.cancelParkedAsk(this)
         FloatingButton.hide(this)
         if (backgroundFailed) {
             backgroundFailed = false
@@ -421,6 +440,13 @@ class MainActivity : AppCompatActivity(),
     }
 
     // ---- VoiceCommand.Listener ----
+
+    override fun onStopRequested() {
+        ui.post {
+            parkDialog?.dismiss()
+            if (dashcam.isLoopRunning) toggleRecording()
+        }
+    }
 
     override fun onVoiceCommand() {
         // Si la pantalla estaba en negro, vuelve para que se vea que se ha guardado
@@ -1154,6 +1180,51 @@ class MainActivity : AppCompatActivity(),
             if (recording) "● Grabando · toca la pantalla para volver" else "Parado · toca la pantalla para volver"
     }
 
+    /**
+     * Cada poco se mira si llevas un rato parado (GPS por debajo de 5 km/h). Sin señal GPS
+     * no se cuenta. Si vuelves a moverte, el aviso se puede repetir en la siguiente parada.
+     */
+    private fun checkParked() {
+        if (!::dashcam.isInitialized || !dashcam.isLoopRunning) {
+            stoppedSince = 0L
+            parkAsked = false
+            return
+        }
+        val speed = Telemetry.speedNow()
+        val now = android.os.SystemClock.elapsedRealtime()
+        when {
+            speed < 0f -> Unit
+            speed >= MOVING_KMH -> {
+                stoppedSince = 0L
+                parkAsked = false
+            }
+            speed >= PARKED_KMH -> Unit // en medio: ni parado ni circulando
+            stoppedSince == 0L -> stoppedSince = now
+            !parkAsked && now - stoppedSince >= PARK_MS -> askParked("Llevas ${PARK_MS / 60_000} minutos parado")
+        }
+    }
+
+    private fun askParked(reason: String) {
+        parkAsked = true
+        val title = "¿Quieres seguir grabando?"
+        val text = "$reason. Si ya has acabado, dale a Parar o cierra la app del todo. " +
+            "Si sigues conduciendo, no hace falta hacer nada."
+        if (visible) {
+            if (binding.darkOverlay.isVisible) setDarkMode(false)
+            parkDialog?.dismiss()
+            parkDialog = MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setMessage(text)
+                .setPositiveButton("Parar grabación") { _, _ -> if (dashcam.isLoopRunning) toggleRecording() }
+                .setNegativeButton("Seguir grabando", null)
+                .setOnDismissListener { parkDialog = null }
+                .show()
+            if (beepOn && beepId != 0) soundPool.play(beepId, 1f, 1f, 1, 0, 1f)
+        } else {
+            RecordingService.askParked(this, title, text)
+        }
+    }
+
     /** Vuelve a contar el tiempo para apagar la imagen sola (si está activado en Ajustes). */
     private fun restartAutoDark() {
         ui.removeCallbacks(autoDark)
@@ -1225,6 +1296,10 @@ class MainActivity : AppCompatActivity(),
         private const val KEY_FIT = "encuadre_completo"
         private const val KEY_AUTO_DARK = "pantalla_negra_auto"
         private const val AUTO_DARK_MS = 30_000L
+        private const val PARK_CHECK_MS = 20_000L
+        private const val PARK_MS = 5 * 60_000L
+        private const val PARKED_KMH = 5f
+        private const val MOVING_KMH = 15f
         private const val KEY_INSIDE = "camara_interior"
         private const val KEY_CAMERA_MODE = "modo_camara"
         private const val KEY_INSIDE_WARNED = "aviso_interior_visto"
