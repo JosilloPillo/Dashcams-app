@@ -231,6 +231,7 @@ class DashcamController(
                     if (crashes >= 2) {
                         bothProblem = "la app se cerró sola dos veces al grabar con las dos cámaras en este móvil, " +
                             "así que graba solo la carretera. Vuelve a elegir «Las dos a la vez» para reintentarlo."
+                        Reports.problem("Cámara doble", "la app se cerró dos veces; se graba solo la carretera")
                     } else if (pair == null) {
                         bothProblem = if (supportsBothCameras) {
                             "el móvil no ofrece la cámara trasera y la frontal juntas"
@@ -292,6 +293,7 @@ class DashcamController(
                                 break
                             } catch (e: Exception) {
                                 lastError = e
+                                Reports.error("Cámara doble" + (pairIds?.let { " [cámaras $it]" } ?: ""), e)
                                 bothProblem = (pairIds?.let { "[cámaras $it] " } ?: "") +
                                     (e.message ?: e.javaClass.simpleName)
                                 for (effect in listOf(roadEffect, insideEffect)) {
@@ -359,6 +361,7 @@ class DashcamController(
                 preview = pv
                 listener.onCameraReady()
             } catch (e: Exception) {
+                Reports.error("Abrir la cámara", e)
                 listener.onDashcamError("No se pudo abrir la cámara: ${e.message}")
             }
         }, executor)
@@ -660,8 +663,21 @@ class DashcamController(
         } catch (e: Exception) {
             pendingProtection.remove(file)
             loopWanted = false
+            Reports.error("Empezar a grabar", e)
             listener.onDashcamError("No se pudo empezar a grabar: ${e.message}")
         }
+    }
+
+    /** Un vídeo que se cierra con error (no cuenta parar a mano ni el corte de cada minuto). */
+    private fun reportFinalize(camera: String, event: VideoRecordEvent.Finalize) {
+        val error = event.error
+        if (error == VideoRecordEvent.Finalize.ERROR_NONE ||
+            error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED ||
+            error == VideoRecordEvent.Finalize.ERROR_NO_VALID_DATA // parado justo al empezar
+        ) return
+        val cause = event.cause
+        if (cause != null) Reports.error("Grabación $camera (código $error)", cause)
+        else Reports.problem("Grabación $camera", "código $error")
     }
 
     private fun onFinalized(file: File, event: VideoRecordEvent.Finalize) {
@@ -675,6 +691,7 @@ class DashcamController(
         val error = event.error
         val ok = error == VideoRecordEvent.Finalize.ERROR_NONE ||
             error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED
+        reportFinalize("carretera", event)
 
         val hasData = file.exists() && file.length() > 0
         if (!hasData) file.delete()
@@ -829,6 +846,7 @@ class DashcamController(
             val error = event.error
             val ok = error == VideoRecordEvent.Finalize.ERROR_NONE ||
                 error == VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED
+            reportFinalize("interior", event)
             val hasData = file.exists() && file.length() > 0
             if (!hasData) file.delete()
 

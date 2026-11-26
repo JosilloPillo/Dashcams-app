@@ -314,6 +314,29 @@
             android:layout_height="wrap_content"
             android:text="Dashcams España" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchReports"
+            style="@style/Dashcams.SettingsSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/reports_switch" />
+
+        <TextView
+            style="@style/Dashcams.SettingsNote"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/reports_note" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnPrivacy"
+            style="@style/Dashcams.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_tab"
+            android:text="Política de privacidad"
+            android:textSize="14sp" />
+
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnWelcome"
             style="@style/Dashcams.Pill"

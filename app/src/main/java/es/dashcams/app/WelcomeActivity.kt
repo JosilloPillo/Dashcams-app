@@ -48,6 +48,10 @@ class WelcomeActivity : AppCompatActivity() {
         binding.btnWeb.setOnClickListener { open(Links.WEB) }
         binding.btnShop.setOnClickListener { open(Links.SHOP) }
 
+        binding.switchReports.isChecked = Reports.isOn(this)
+        binding.switchReports.setOnCheckedChangeListener { _, on -> Reports.set(this, on) }
+        binding.btnPrivacy.setOnClickListener { open(Reports.PRIVACY_URL) }
+
         binding.btnStart.text = if (seen(this)) "Volver a la app" else "Empezar a grabar"
         binding.btnStart.setOnClickListener {
             val first = !seen(this)

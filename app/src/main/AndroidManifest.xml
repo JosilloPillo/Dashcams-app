@@ -42,6 +42,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Dashcams">
 
+        <!-- Informes de fallos apagados de serie: solo se encienden si el usuario lo acepta -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"

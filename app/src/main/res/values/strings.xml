@@ -84,4 +84,7 @@
     <string name="send_leer_condiciones">Leer condiciones de envío</string>
     <string name="send_leer_privacidad">Leer política de privacidad</string>
     <string name="send_button">Enviar clip</string>
+    <string name="reports_switch">Enviar informes de fallos</string>
+    <string name="reports_note">Nos ayuda a arreglar fallos en tu modelo de móvil. Solo datos técnicos (modelo, versión de Android y el error), nunca vídeos, ubicación ni velocidad. Puedes quitarlo cuando quieras.</string>
+    <string name="reports_privacy_link">Ver la política de privacidad ›</string>
 </resources>

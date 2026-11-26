@@ -208,6 +208,7 @@ class MainActivity : AppCompatActivity(),
             return
         }
         CrashLog.install(this)
+        Reports.init(this)
         CrashLog.beforeCrash = { if (::dashcam.isInitialized) dashcam.stopLoop() }
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -418,6 +419,9 @@ class MainActivity : AppCompatActivity(),
     // ---- DashcamController.Listener ----
 
     override fun onCameraReady() {
+        Reports.key("modo_camara", dashcam.cameraMode.name)
+        Reports.key("dos_camaras_activas", dashcam.bothActive.toString())
+        dashcam.bothProblem?.let { Reports.key("dos_camaras_problema", it.take(200)) }
         // Como una dashcam de verdad: en cuanto la cámara está lista, empieza a grabar.
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) || serviceRunning) {
             if (!pausedForHeat && !userStopped) dashcam.startLoop()
@@ -603,6 +607,15 @@ class MainActivity : AppCompatActivity(),
         }
         s.btnBattery.setOnClickListener { openBatterySettings() }
         s.btnLimit.setOnClickListener { chooseLoopLimit(s) }
+        s.switchReports.setOnCheckedChangeListener { _, on ->
+            if (on != Reports.isOn(this)) Reports.set(this, on)
+        }
+        s.btnPrivacy.setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Reports.PRIVACY_URL)))
+            } catch (ignored: Exception) {
+            }
+        }
         s.btnWelcome.setOnClickListener {
             inAppScreen = true // es una pantalla de la propia app: ni parar ni sacar el botón flotante
             startActivity(Intent(this, WelcomeActivity::class.java))
@@ -674,6 +687,7 @@ class MainActivity : AppCompatActivity(),
         s.switchBeep.isChecked = beepOn
         s.switchFit.isChecked = fitPreview
         s.switchAutoDark.isChecked = autoDarkOn
+        s.switchReports.isChecked = Reports.isOn(this)
 
         // Datos en el vídeo
         s.switchSpeed.isChecked = Telemetry.showSpeed
@@ -934,6 +948,16 @@ class MainActivity : AppCompatActivity(),
                 Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cerrar", null)
+            .apply {
+                // Quien aún no lo tiene activado puede mandarlo ya (y los siguientes, solos)
+                if (!Reports.isOn(this@MainActivity)) {
+                    setNeutralButton("Enviar solo") { _, _ ->
+                        Reports.set(this@MainActivity, true)
+                        settings?.let { refreshSettings(it) }
+                        Toast.makeText(this@MainActivity, "Gracias: los fallos se enviarán solos", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
             .show()
     }
 

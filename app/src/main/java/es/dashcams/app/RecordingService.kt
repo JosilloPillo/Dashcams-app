@@ -126,6 +126,7 @@ class RecordingService : Service() {
         } catch (e: Exception) {
             isForeground = false
             lastError = e.message ?: e.javaClass.simpleName
+            Reports.error("Segundo plano", e)
             stopSelf()
         }
     }
