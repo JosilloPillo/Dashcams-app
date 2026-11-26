@@ -610,6 +610,17 @@ class MainActivity : AppCompatActivity(),
         s.switchReports.setOnCheckedChangeListener { _, on ->
             if (on != Reports.isOn(this)) Reports.set(this, on)
         }
+        // Oculto: mantener pulsado manda un informe de prueba (para comprobar que llegan)
+        s.btnPrivacy.setOnLongClickListener {
+            if (Reports.isOn(this)) {
+                Reports.problem("Prueba", "informe de prueba enviado desde Ajustes")
+                Reports.flush()
+                Toast.makeText(this, "Informe de prueba enviado", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Activa antes «Enviar informes de fallos»", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
         s.btnPrivacy.setOnClickListener {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Reports.PRIVACY_URL)))

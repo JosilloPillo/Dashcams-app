@@ -66,6 +66,12 @@ object Reports {
         crashlytics()?.recordException(Problem("$where: $message", null))
     }
 
+    /** Manda ya lo pendiente (los errores sin cierre se mandan normalmente al volver a abrir la app). */
+    fun flush() {
+        if (!on) return
+        crashlytics()?.sendUnsentReports()
+    }
+
     /** Para que en el panel salgan con un nombre propio y no todos como «Exception». */
     class Problem(message: String, cause: Throwable?) : Exception(message, cause)
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "640268656733",
+    "project_id": "dashcams-espana-app",
+    "storage_bucket": "dashcams-espana-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:640268656733:android:9fdc032e3eb87bc50a2db4",
+        "android_client_info": {
+          "package_name": "es.dashcams.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCo8_J0KhHh42QyIeQ6_RUBE15J4ST7bbA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
